@@ -126,6 +126,15 @@
                 android:resource="@xml/wheel_key_service" />
         </service>
 
+        <!-- Steering-wheel media keys on Android 4.4, which has no MediaSession. -->
+        <receiver
+            android:name="com.shilapi.xcertplay.CarPlayMediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name="com.shilapi.xcertplay.BootReceiver"
             android:enabled="true"

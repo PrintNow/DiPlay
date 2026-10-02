@@ -1,3 +1,5 @@
 <resources>
     <bool name="config_advanced_audio_channel_mapping">false</bool>
+    <!-- CarPlayMediaButtonReceiver: only Android 4.4 delivers media keys to a receiver. -->
+    <bool name="legacy_media_button_receiver">true</bool>
 </resources>

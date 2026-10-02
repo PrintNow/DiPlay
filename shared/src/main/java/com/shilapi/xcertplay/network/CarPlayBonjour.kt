@@ -431,8 +431,8 @@ class CarPlayBonjour(
         if (port !in 1..65535) return
         val serviceName = resolved.serviceName ?: service.serviceName ?: return
         val host = address.hostAddress ?: return
-        val bluetoothId = resolved.takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP }
-            ?.attributes
+        val attributes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) resolved.attributes else null
+        val bluetoothId = attributes
             ?.get("id")
             ?.let(::decodeTxtValue)
             ?.takeIf { it.isNotBlank() }

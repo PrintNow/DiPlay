@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.SurfaceTexture
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -19,6 +20,7 @@ import android.view.ViewConfiguration
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.FrameLayout
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -44,7 +46,9 @@ internal object CenterMapOverlay {
     var requestShow: (() -> Unit)? = null
     private val showIfBackground = Runnable { if (!diPlayInFront()) requestShow?.invoke() }
 
-    fun permitted(context: Context): Boolean = Settings.canDrawOverlays(context)
+    /** Before API 23 SYSTEM_ALERT_WINDOW is granted at install. */
+    fun permitted(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
     /** Shows the card shortly, unless a DiPlay screen is in front by then. */
     fun scheduleShow() {
@@ -97,7 +101,12 @@ internal object CenterMapOverlay {
         val params = WindowManager.LayoutParams(
             width,
             height,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, // the TextureView needs it
             PixelFormat.TRANSLUCENT,
@@ -133,11 +142,8 @@ internal object CenterMapOverlay {
         }
         val card = FrameLayout(context).apply {
             setBackgroundColor(Color.BLACK)
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) =
-                    outline.setRoundRect(0, 0, view.width, view.height, radius)
-            }
-            clipToOutline = true
+            // Rounded clipping needs API 21; the card is square on Android 4.4.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) roundCorners(this, radius)
             addView(video, FrameLayout.LayoutParams(-1, -1))
         }
         val slop = ViewConfiguration.get(context).scaledTouchSlop
@@ -270,4 +276,13 @@ internal object CenterMapOverlay {
     private const val KEY_Y = "y"
     private const val KEY_WIDTH = "width"
     private const val KEY_ASPECT = "aspect"
+}
+
+@RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+private fun roundCorners(view: View, radius: Float) {
+    view.outlineProvider = object : ViewOutlineProvider() {
+        override fun getOutline(view: View, outline: Outline) =
+            outline.setRoundRect(0, 0, view.width, view.height, radius)
+    }
+    view.clipToOutline = true
 }
