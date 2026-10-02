@@ -57,13 +57,13 @@ class MapEmbedService : Service() {
         destroyed = true
         stopObservingSharing?.invoke()
         stopObservingSharing = null
-        embeds.values.toList().forEach { it.release() }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) embeds.values.toList().forEach { it.release() }
         embeds.clear()
         super.onDestroy()
     }
 
     private fun revokeSharing() {
-        if (destroyed) return
+        if (destroyed || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val attached = embeds.values.toList()
         embeds.clear()
         attached.forEach { it.sharingDisabled() }
@@ -71,6 +71,11 @@ class MapEmbedService : Service() {
 
     private fun handle(message: Message) {
         val client = message.replyTo ?: return
+        // Message.sendingUid needs API 21; embedding itself needs API 30.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            if (message.what == MSG_ATTACH) refuse(client, "a launcher", ERROR_UNSUPPORTED)
+            return
+        }
         val caller = packageManager.getNameForUid(message.sendingUid) ?: "uid ${message.sendingUid}"
         when (message.what) {
             MSG_ATTACH -> attach(client, caller, message.data)
@@ -121,7 +126,8 @@ class MapEmbedService : Service() {
         try {
             client.send(Message.obtain(null, what).apply { this.data = data })
         } catch (_: RemoteException) {
-            embeds.remove(client.binder)?.release()
+            val embed = embeds.remove(client.binder)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) embed?.release()
         }
     }
 

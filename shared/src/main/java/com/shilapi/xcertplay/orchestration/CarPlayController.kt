@@ -1664,7 +1664,7 @@ class CarPlayController(
         val manager: WirelessHotspotManager = when {
             hotspotMode == WirelessHotspotMode.WIFI_P2P && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
                 WifiP2pGroupManager(appContext, ::debugLog)
-            hotspotMode == WirelessHotspotMode.LOCAL_ONLY_HOTSPOT && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ->
+            hotspotMode == WirelessHotspotMode.LOCAL_ONLY_HOTSPOT && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ->
                 LocalOnlyHotspotManager(appContext, ::debugLog)
             hotspotMode == WirelessHotspotMode.APP_HOTSPOT -> LegacyAppHotspotManager(appContext, ::debugLog)
             else -> ManualHotspotManager(

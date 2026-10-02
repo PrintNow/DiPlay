@@ -66,17 +66,8 @@ internal class MicrophoneUplink(private val config: MicrophoneConfig) : Closeabl
         }
         val bufferSize = maxOf(minBuffer * 2, config.frameBytes * 4)
         val nextRecorder = try {
-            AudioRecord.Builder()
-                .setAudioSource(source)
-                .setAudioFormat(
-                    AndroidAudioFormat.Builder()
-                        .setEncoding(AndroidAudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(config.sampleRate)
-                        .setChannelMask(channelMask)
-                        .build(),
-                )
-                .setBufferSizeInBytes(bufferSize)
-                .build()
+            // Same recorder as AudioRecord.Builder, which needs API 23.
+            AudioRecord(source, config.sampleRate, channelMask, AndroidAudioFormat.ENCODING_PCM_16BIT, bufferSize)
         } catch (error: Exception) {
             Log.e(TAG, "microphone recorder creation failed", error)
             nextEncoder?.close()
@@ -134,7 +125,7 @@ internal class MicrophoneUplink(private val config: MicrophoneConfig) : Closeabl
         var filled = 0
         try {
             while (running.get()) {
-                val count = recorder.read(readBuffer, 0, readBuffer.size, AudioRecord.READ_BLOCKING)
+                val count = recorder.read(readBuffer, 0, readBuffer.size) // blocking; READ_BLOCKING needs API 23
                 if (count < 0) {
                     if (running.get()) Log.e(TAG, "microphone read failed code=$count")
                     return

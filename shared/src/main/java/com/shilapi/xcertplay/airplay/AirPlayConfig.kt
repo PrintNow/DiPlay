@@ -51,4 +51,8 @@ data class AirPlayConfig(
     val icons: List<AirPlayIcon> = emptyList(),
     /** iOS 27 video in car (see [VideoInCar]); video plays only while [VideoInCar.allowed]. */
     val videoInCar: Boolean = false,
+    /** Offer Opus playback; Android has a MediaCodec Opus decoder from API 21. */
+    val opusOutput: Boolean = true,
+    /** Offer Opus microphone input; the MediaCodec Opus encoder needs API 29. */
+    val opusInput: Boolean = true,
 )
