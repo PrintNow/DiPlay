@@ -2,6 +2,11 @@
 
 Requirements: JDK 25, Android SDK 37, NDK 28.2.13676358 and the included Gradle wrapper.
 
+`mobile`, `common` and `shared` target Android 4.4 (minSdk 19). NDK 28 supports API 21 and up,
+so the JNI libraries are built for API 21 (`android.ndk.suppressMinSdkVersionError`) using only
+symbols Android 4.4 also has. The APK uses legacy multidex, and bundles Conscrypt 2.5.3 for TLS 1.2
+on Android 4.4; unit tests run Robolectric with `robolectric.conscryptMode=OFF`.
+
 ## Source and CI builds
 
 ```sh
