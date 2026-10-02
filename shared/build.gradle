@@ -36,7 +36,13 @@ android {
 dependencies {
     implementation libs.androidx.core.ktx
     implementation libs.bouncycastle
+    implementation libs.conscrypt
     implementation libs.jmdns
     testImplementation libs.junit
     testImplementation 'org.robolectric:robolectric:4.17'
+}
+
+tasks.withType(Test).configureEach {
+    // Conscrypt is bundled for Android 4.4 TLS 1.2; its AAR has no host library for Robolectric.
+    systemProperty 'robolectric.conscryptMode', 'OFF'
 }

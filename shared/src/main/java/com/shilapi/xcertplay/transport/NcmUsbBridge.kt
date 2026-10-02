@@ -5,6 +5,7 @@ import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbRequest
+import android.os.Build
 import android.util.Log
 import java.io.Closeable
 import java.nio.ByteBuffer
@@ -40,13 +41,20 @@ class NcmUsbBridge internal constructor(
     private var queuedBytes = 0
     private var buffered = ByteArray(0)
     private var bufferedSize = 0
-    private val readBuffer = ByteArray(READ_CHUNK_BYTES)
+    private val readChunkBytes = QueuedUsbReader.transferLimit(READ_CHUNK_BYTES)
+    private val readBuffer = ByteArray(readChunkBytes)
     // Bulk IN uses one persistent async request: bulkTransfer() pins its byte[] in a JNI critical
     // section for the whole wait, which blocks ART's GC thread flip and, with it, every other USB
     // transfer (seen as ~0.8 s stalls of video and audio). A timed-out request stays queued, so no
     // data is lost between calls. This is the only requestWait() user on this connection.
-    private val directReadBuffer = ByteBuffer.allocateDirect(READ_CHUNK_BYTES)
+    private val directReadBuffer = ByteBuffer.allocateDirect(readChunkBytes)
     private var readRequest: UsbRequest? = null
+    /** Before API 26 the same persistent request lives in a reader thread; see [QueuedUsbReader]. */
+    private val legacyReader = if (QueuedUsbReader.needed) {
+        QueuedUsbReader(connection, inEndpoint, readChunkBytes, "ncm")
+    } else {
+        null
+    }
     private var readQueued = false
     private val statusRunning = AtomicBoolean(statusEndpoint != null)
     private val statusThread = statusEndpoint?.let { endpoint ->
@@ -119,6 +127,7 @@ class NcmUsbBridge internal constructor(
         }
         // Wakes a reader blocked in requestWait(); it then observes the closed state.
         runCatching { requestToClose?.cancel() }
+        runCatching { legacyReader?.close() }
         statusThread?.let { thread ->
             thread.interrupt()
             try {
@@ -219,6 +228,16 @@ class NcmUsbBridge internal constructor(
 
     private fun readChunk(timeoutMillis: Long): Int? {
         checkOpen()
+        legacyReader?.let { reader ->
+            val chunk = try {
+                reader.read(timeoutMillis)
+            } catch (error: IphoneUsbException) {
+                throw failSession(error.message ?: "NCM read failed", error)
+            } ?: return null
+            chunk.copyInto(readBuffer)
+            return chunk.size
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
         val request = try {
             // Publish and queue atomically with close(), so detach cannot miss a new request.
             synchronized(stateLock) {
@@ -310,7 +329,7 @@ class NcmUsbBridge internal constructor(
                 // same interface id, so it must be claimed once and switched with setInterface.
                 val sameInterface = function.control.id == function.data.id
                 val first = if (sameInterface) function.data else function.control
-                val firstClaimed = connection.claimInterface(first, true)
+                val firstClaimed = connection.claimInterface(first.platform, true)
                 Log.i(
                     IphoneCarPlayConfiguration.TAG,
                     "claim iface=${first.id}/${first.alternateSetting} class=${first.interfaceClass}" +
@@ -321,9 +340,9 @@ class NcmUsbBridge internal constructor(
                         "Android could not claim the NCM interface ${first.id}",
                     )
                 }
-                claimed.add(first)
+                claimed.add(first.platform)
                 if (!sameInterface) {
-                    val dataClaimed = connection.claimInterface(function.data, true)
+                    val dataClaimed = connection.claimInterface(function.data.platform, true)
                     Log.i(
                         IphoneCarPlayConfiguration.TAG,
                         "claim iface=${function.data.id}/${function.data.alternateSetting}" +
@@ -334,9 +353,9 @@ class NcmUsbBridge internal constructor(
                             "Android could not claim the NCM data interface ${function.data.id}",
                         )
                     }
-                    claimed.add(function.data)
+                    claimed.add(function.data.platform)
                 }
-                val altSelected = connection.setInterface(function.data)
+                val altSelected = connection.selectAlternateSetting(function.data)
                 Log.i(
                     IphoneCarPlayConfiguration.TAG,
                     "setInterface iface=${function.data.id}/${function.data.alternateSetting} ok=$altSelected",
