@@ -37,3 +37,8 @@ source/CI build when the explicit asset input is absent; do not install that out
 standalone car-test package. Before delivery, verify both `assets/offline-mfi/identity.pk8`
 and `assets/offline-mfi/certificate.p7b` in the APK against the selected local inputs.
 Update the existing test app without uninstalling it to preserve its settings.
+
+## arm64 Linux hosts
+
+The official Linux NDK and SDK build tools are x86_64 only. See
+[Building on an arm64 Linux host](BUILD_ARM64.md) for a tested setup script and known issues.
