@@ -1,5 +1,6 @@
 package com.shilapi.xcertplay.orchestration
 
+import android.os.Build
 import com.shilapi.xcertplay.transport.Iap2IdentificationConfig
 import com.shilapi.xcertplay.transport.UsbDeviceId
 import java.net.Inet6Address
@@ -21,6 +22,33 @@ enum class WirelessHotspotMode {
     WIFI_P2P,
     LOCAL_ONLY_HOTSPOT,
     MANUAL,
+    /** DiPlay turns on the device's own hotspot with its own credentials (Android 4.4–5.1). */
+    APP_HOTSPOT,
+    ;
+
+    /** This mode, or the one that replaces it on this Android version. */
+    fun supported(sdkInt: Int = Build.VERSION.SDK_INT): WirelessHotspotMode {
+        val fallback = if (sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE) APP_HOTSPOT else MANUAL
+        return when (this) {
+            // LocalOnlyHotspot credentials cannot be advertised reliably; it is never offered.
+            LOCAL_ONLY_HOTSPOT -> fallback
+            WIFI_P2P -> if (sdkInt >= Build.VERSION_CODES.Q) this else fallback
+            APP_HOTSPOT -> fallback
+            MANUAL -> this
+        }
+    }
+
+    companion object {
+        /**
+         * Android 6.0 started requiring WRITE_SETTINGS for WifiManager.setWifiApEnabled and 8.0
+         * removed it for apps, so only Android 5.1 and older can use [APP_HOTSPOT].
+         */
+        const val APP_HOTSPOT_MAX_SDK_EXCLUSIVE = Build.VERSION_CODES.M
+
+        /** What a new install uses. */
+        fun default(sdkInt: Int = Build.VERSION.SDK_INT): WirelessHotspotMode =
+            if (sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE) APP_HOTSPOT else MANUAL
+    }
 }
 
 enum class ManualHotspotBand {

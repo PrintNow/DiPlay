@@ -23,6 +23,7 @@ import android.view.TextureView
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.host.R
 
 /**
@@ -93,7 +94,7 @@ class MapEmbedService : Service() {
             return
         }
         embeds.remove(client.binder)?.release()
-        val display = getSystemService(DisplayManager::class.java)?.getDisplay(data.getInt(KEY_DISPLAY_ID))
+        val display = ContextCompat.getSystemService(this, DisplayManager::class.java)?.getDisplay(data.getInt(KEY_DISPLAY_ID))
         if (display == null) {
             send(client, MSG_ERROR, Bundle().apply { putString(KEY_ERROR, ERROR_BAD_REQUEST) })
             return

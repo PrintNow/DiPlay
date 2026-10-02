@@ -29,6 +29,7 @@ import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -202,6 +203,7 @@ class DiPlayActivity : ComponentActivity() {
         val connectionHint = when (AirPlayPersistence.loadWirelessHotspotMode(this)) {
             WirelessHotspotMode.MANUAL -> getString(R.string.hotspot_hint_manual)
             WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> getString(R.string.hotspot_hint_local)
+            WirelessHotspotMode.APP_HOTSPOT -> getString(R.string.hotspot_hint_app)
             else -> getString(R.string.hotspot_hint_p2p)
         }
         card.addView(label(connectionHint, 15, MUTED).apply { setPadding(0, dp(14), 0, 0) })
@@ -340,7 +342,7 @@ class DiPlayActivity : ComponentActivity() {
                     val overlay = CenterMapOverlay.permitted(this)
                     card.addView(label(if (overlay) getString(R.string.center_map_overlay_allowed)
                         else getString(R.string.center_map_overlay_missing, packageName), 14, if (overlay) MUTED else WARNING))
-                    val usage = HomeScreenMonitor.hasAccess(this)
+                    val usage = UsageAccess.granted(this)
                     card.addView(label(if (usage) getString(R.string.center_map_usage_allowed)
                         else getString(R.string.center_map_usage_missing, packageName), 14, if (usage) MUTED else WARNING))
                 }
@@ -352,7 +354,7 @@ class DiPlayActivity : ComponentActivity() {
                         render()
                         reconnectForClusterMap()
                     }
-                    val allowed = DiLink51ClusterMonitor.hasAccess(this)
+                    val allowed = UsageAccess.granted(this)
                     card.addView(label(if (allowed) getString(R.string.usage_access_enabled)
                         else getString(R.string.usage_access_setup_needed_for_automatic_mode), 14, if (allowed) MUTED else WARNING))
                     card.addView(button(getString(R.string.automatic_map_setup_adb), false) { showClusterAccessSetup() }, matchButton(10, 56))
@@ -555,11 +557,17 @@ class DiPlayActivity : ComponentActivity() {
 
     private fun wirelessLinkControls(parent: LinearLayout) {
         val mode = if (pendingCarHotspotSetup) WirelessHotspotMode.MANUAL else AirPlayPersistence.loadWirelessHotspotMode(this)
-        val modes = listOf(WirelessHotspotMode.MANUAL, WirelessHotspotMode.WIFI_P2P)
-        val titles = listOf(getString(R.string.built_in_car_hotspot), getString(R.string.wifi_direct))
+        // Android 4.4–5.1 has no app-usable Wi-Fi Direct credentials, but DiPlay can run the hotspot itself.
+        val legacy = WirelessHotspotMode.APP_HOTSPOT.supported() == WirelessHotspotMode.APP_HOTSPOT
+        val second = if (legacy) WirelessHotspotMode.APP_HOTSPOT else WirelessHotspotMode.WIFI_P2P
+        val modes = listOf(WirelessHotspotMode.MANUAL, second)
+        val titles = listOf(
+            getString(R.string.built_in_car_hotspot),
+            getString(if (legacy) R.string.diplay_hotspot else R.string.wifi_direct),
+        )
         val descriptions = listOf(
             getString(R.string.hotspot_mode_manual_desc),
-            getString(R.string.hotspot_mode_p2p_desc)
+            getString(if (legacy) R.string.hotspot_mode_app_desc else R.string.hotspot_mode_p2p_desc),
         )
         val wide = resources.configuration.screenWidthDp >= 850
         val choices = if (wide) row().apply { gravity = Gravity.TOP } else column()
@@ -592,6 +600,8 @@ class DiPlayActivity : ComponentActivity() {
                 }
             }, matchButton(12, 60))
             parent.addView(label(if (pendingCarHotspotSetup) getString(R.string.finish_setup_save_your_hotspot_details_to_use_this_mode) else if (carHotspotOff()) getString(R.string.hotspot_details_off) else getString(R.string.hotspot_details_saved), 15, if (carHotspotOff()) WARNING else MUTED).apply { setPadding(0, dp(12), 0, 0) })
+        } else if (mode == WirelessHotspotMode.APP_HOTSPOT) {
+            parent.addView(label(getString(R.string.hotspot_mode_app_details), 16, MUTED))
         } else {
             parent.addView(label(getString(R.string.turn_the_car_s_wi_fi_switch_on_allow_location_nearby_devic), 16, MUTED))
             parent.addView(button(getString(R.string.open_car_wi_fi_settings), false) { openCarClientWifiSettings() }, matchButton(12, 60))
@@ -761,7 +771,7 @@ class DiPlayActivity : ComponentActivity() {
         }, matchButton(0, 56))
         body.addView(label(getString(R.string.cluster_adb_multi_device, packageName), 14, MUTED))
         body.addView(label(getString(R.string.s_3_tap_check_and_enable_below_this_enables_the_cluster_ma), 16, TEXT))
-        val status = label(if (DiLink51ClusterMonitor.hasAccess(this)) getString(R.string.permission_enabled_ready) else getString(R.string.permission_not_enabled), 16, TEXT)
+        val status = label(if (UsageAccess.granted(this)) getString(R.string.permission_enabled_ready) else getString(R.string.permission_not_enabled), 16, TEXT)
         body.addView(status)
         val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.automatic_cluster_map_setup))
             .setView(ScrollView(this).apply { addView(body) })
@@ -769,7 +779,7 @@ class DiPlayActivity : ComponentActivity() {
             .setPositiveButton(getString(R.string.check_and_enable), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                if (DiLink51ClusterMonitor.hasAccess(this)) {
+                if (UsageAccess.granted(this)) {
                     AirPlayPersistence.saveClusterMapEnabled(this, true)
                     DiLink51ClusterLayout.saveAutomatic(this, true)
                     dialog.dismiss()
@@ -824,7 +834,7 @@ class DiPlayActivity : ComponentActivity() {
     }
 
     private fun hasPreciseLocation() =
-        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     // The location component is part of the iAP2 identification, so a running session reconnects.
     private fun reconnectForLocation() {
@@ -885,7 +895,7 @@ class DiPlayActivity : ComponentActivity() {
             pendingWireless = true; choosePhone(); return
         }
         val preferences = getSharedPreferences("diplay", MODE_PRIVATE)
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && !preferences.getBoolean("notification_asked", false)) {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && !preferences.getBoolean("notification_asked", false)) {
             preferences.edit().putBoolean("notification_asked", true).apply()
             notificationTransport = wireless
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -902,10 +912,10 @@ class DiPlayActivity : ComponentActivity() {
         startActivity(Intent(this, CarPlayHostActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
     }
     private fun choosePhone() {
-        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT); return
         }
-        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+        val adapter = ContextCompat.getSystemService(this, BluetoothManager::class.java)?.adapter
         if (adapter == null || !adapter.isEnabled) {
             AlertDialog.Builder(this).setTitle(getString(R.string.turn_on_bluetooth))
                 .setMessage(getString(R.string.enable_the_car_s_bluetooth_and_pair_your_iphone_first))

@@ -14,6 +14,10 @@
     <string name="marker_centre_default">居中 · 默认</string>
     <string name="hotspot_mode_manual_desc">使用车輄自带热点。若车机支持，请在车机设置中选择 5 GHz。</string>
     <string name="hotspot_mode_p2p_desc">备选方案。需要打开车机 Wi-Fi 开关；2.4 GHz 连接可能会卡顿。</string>
+    <string name="diplay_hotspot">DiPlay 热点</string>
+    <string name="hotspot_hint_app">DiPlay 热点 · 保持蓝牙和 iPhone 的 Wi-Fi 开启。CarPlay 运行期间车机 Wi-Fi 开关会关闭。</string>
+    <string name="hotspot_mode_app_desc">适用于 Android 4.4–5.1。DiPlay 自动开启车机热点，无需设置。</string>
+    <string name="hotspot_mode_app_details">连接时 DiPlay 会用自己的名称和密码开启车机热点，结束后恢复你原来的热点设置和 Wi-Fi 开关。CarPlay 期间车机无法通过 Wi-Fi 上网。</string>
     <string name="hotspot_details_off">热点已关闭 · 请在车机设置中开启。</string>
     <string name="hotspot_details_saved">详情已保存 · 连接前请确认车载热点已开启。</string>
     <string name="permission_enabled_ready">权限已启用 · 可以使用</string>

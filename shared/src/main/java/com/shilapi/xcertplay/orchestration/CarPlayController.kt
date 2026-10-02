@@ -19,6 +19,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.airplay.AirPlayConfig
 import com.shilapi.xcertplay.airplay.AirPlayContact
 import com.shilapi.xcertplay.airplay.AirPlayDeviceInfo
@@ -37,6 +38,7 @@ import com.shilapi.xcertplay.mfi.LocalMfiAuthenticationClient
 import com.shilapi.xcertplay.network.CarPlayBonjour
 import com.shilapi.xcertplay.network.diagnosticSummary
 import com.shilapi.xcertplay.network.CarPlayVpnService
+import com.shilapi.xcertplay.network.LegacyAppHotspotManager
 import com.shilapi.xcertplay.network.LocalOnlyHotspotManager
 import com.shilapi.xcertplay.network.ManualHotspotManager
 import com.shilapi.xcertplay.network.WifiP2pGroupManager
@@ -158,9 +160,9 @@ class CarPlayController(
     private enum class Phase { IDLE, MFI, WIRELESS, IPHONE, REENUMERATION, DATAPATHS, CONTROL }
 
     private val appContext = context.applicationContext
-    private val usbManager = context.getSystemService(UsbManager::class.java)
+    private val usbManager = checkNotNull(ContextCompat.getSystemService(context, UsbManager::class.java))
     private val bluetoothAdapter =
-        appContext.getSystemService(BluetoothManager::class.java)?.adapter
+        ContextCompat.getSystemService(appContext, BluetoothManager::class.java)?.adapter
     private val iphoneHost = IphoneUsbHost(
         appContext,
         usbManager,
@@ -511,7 +513,7 @@ class CarPlayController(
         availabilityPollGeneration.incrementAndGet()
         phase = Phase.MFI
         onStatus(CarPlayStatus.DiscoveringMfi)
-        val offlineDirectory = java.io.File(appContext.noBackupFilesDir, LocalMfiAuthenticationClient.DIRECTORY)
+        val offlineDirectory = java.io.File(ContextCompat.getNoBackupFilesDir(appContext), LocalMfiAuthenticationClient.DIRECTORY)
         if (offlineDirectory.exists()) {
             openLocalMfi(offlineDirectory)
             return
@@ -1653,22 +1655,19 @@ class CarPlayController(
             type.equals("disable-bluetooth", ignoreCase = true)
 
     private fun startWirelessHotspot(generation: Int): WirelessHotspotInfo {
-        val hotspotMode = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
-            config.wirelessHotspotMode == WirelessHotspotMode.WIFI_P2P
-        ) {
-            WirelessHotspotMode.LOCAL_ONLY_HOTSPOT
-        } else {
-            config.wirelessHotspotMode
-        }
+        val hotspotMode = config.wirelessHotspotMode.supported()
         if (hotspotMode == WirelessHotspotMode.MANUAL &&
             com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(appContext) == false
         ) {
             throw IOException("The car hotspot is off. Turn it on in the car settings and connect again.")
         }
-        val manager: WirelessHotspotManager = when (hotspotMode) {
-            WirelessHotspotMode.WIFI_P2P -> WifiP2pGroupManager(appContext, ::debugLog)
-            WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> LocalOnlyHotspotManager(appContext, ::debugLog)
-            WirelessHotspotMode.MANUAL -> ManualHotspotManager(
+        val manager: WirelessHotspotManager = when {
+            hotspotMode == WirelessHotspotMode.WIFI_P2P && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                WifiP2pGroupManager(appContext, ::debugLog)
+            hotspotMode == WirelessHotspotMode.LOCAL_ONLY_HOTSPOT && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ->
+                LocalOnlyHotspotManager(appContext, ::debugLog)
+            hotspotMode == WirelessHotspotMode.APP_HOTSPOT -> LegacyAppHotspotManager(appContext, ::debugLog)
+            else -> ManualHotspotManager(
                 context = appContext,
                 ssid = config.manualHotspotSsid
                     ?: throw IOException("Manual hotspot SSID is not configured"),

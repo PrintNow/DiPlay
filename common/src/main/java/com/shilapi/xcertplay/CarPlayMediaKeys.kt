@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.airplay.CarPlayMediaButton
 import com.shilapi.xcertplay.orchestration.CarPlayController
 
@@ -67,7 +68,7 @@ internal object CarPlayMediaKeys {
     private fun regainFocusLocked() {
         val request = focusRequest ?: return
         if (focusHeld) return
-        val audio = appContext?.getSystemService(AudioManager::class.java) ?: return
+        val audio = appContext?.let { ContextCompat.getSystemService(it, AudioManager::class.java) } ?: return
         focusHeld = audio.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         Log.i(TAG, "audio focus regained=$focusHeld")
     }
@@ -85,7 +86,7 @@ internal object CarPlayMediaKeys {
     }
 
     private fun start(context: Context) {
-        val audio = context.getSystemService(AudioManager::class.java)
+        val audio = ContextCompat.getSystemService(context, AudioManager::class.java)
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -115,7 +116,7 @@ internal object CarPlayMediaKeys {
             it.release()
         }
         session = null
-        focusRequest?.let { request -> appContext?.getSystemService(AudioManager::class.java)?.abandonAudioFocusRequest(request) }
+        focusRequest?.let { request -> appContext?.let { ContextCompat.getSystemService(it, AudioManager::class.java) }?.abandonAudioFocusRequest(request) }
         focusRequest = null
         focusHeld = false
     }

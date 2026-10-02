@@ -5,8 +5,11 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -17,6 +20,7 @@ import java.util.concurrent.TimeUnit
  * activity in the owner's Usage Access events. Overlays and panels are not activities, so they
  * leave the answer as it is.
  */
+@RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1) // Usage Access
 internal class HomeScreenMonitor(context: Context, private val onChange: (Boolean) -> Unit) {
     private val context = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
@@ -51,7 +55,7 @@ internal class HomeScreenMonitor(context: Context, private val onChange: (Boolea
 
     private fun poll() {
         val now = System.currentTimeMillis()
-        val events = runCatching { context.getSystemService(UsageStatsManager::class.java).queryEvents(since, now) }
+        val events = runCatching { ContextCompat.getSystemService(context, UsageStatsManager::class.java)?.queryEvents(since, now) }
             .getOrNull() ?: return
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
@@ -79,8 +83,6 @@ internal class HomeScreenMonitor(context: Context, private val onChange: (Boolea
 
         // BYD's home list (Launcher3 HomeHelper): MyCar, the normal home, and the map home.
         val HOME_PACKAGES = setOf("com.android.launcher3", "com.byd.launchermap", "com.byd.naviauto", "com.byd.mycar")
-
-        fun hasAccess(context: Context): Boolean = DiLink51ClusterMonitor.hasAccess(context)
 
         /** The launcher Android uses as home now, unless that is the chooser or DiPlay itself. */
         fun defaultHome(context: Context): String? = runCatching {

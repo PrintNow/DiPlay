@@ -24,6 +24,7 @@ import android.view.View
 import android.view.TextureView
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.host.R
 
 /**
@@ -136,7 +137,7 @@ internal class ClusterMapPresentation(
 
         /** A verified 5.1 profile chooses its layer explicitly; other firmware keeps PR #5 behavior. */
         fun findDisplay(context: Context, theme: DiLink51ClusterLayout.Theme = DiLink51ClusterLayout.theme(context)): Display? {
-            val displays = context.getSystemService(DisplayManager::class.java)
+            val displays = ContextCompat.getSystemService(context, DisplayManager::class.java)
                 ?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION) ?: return null
             val name = DiLink51ClusterLayout.displayName(
                 displays.map { it.name }, android.os.Build.FINGERPRINT, theme,
@@ -150,7 +151,7 @@ internal class ClusterMapPresentation(
         }
 
         fun describeDisplays(context: Context): String =
-            context.getSystemService(DisplayManager::class.java)?.displays
+            ContextCompat.getSystemService(context, DisplayManager::class.java)?.displays
                 ?.joinToString { "${it.displayId}:${it.name}" }.orEmpty()
 
         fun sizeOf(display: Display): Point = Point().also {

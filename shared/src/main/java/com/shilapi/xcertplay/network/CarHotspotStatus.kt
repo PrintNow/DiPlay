@@ -2,6 +2,7 @@ package com.shilapi.xcertplay.network
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import androidx.core.content.ContextCompat
 
 /**
  * Reads whether the head unit's own Wi-Fi hotspot is on, for the "Car hotspot" link.
@@ -18,7 +19,7 @@ object CarHotspotStatus {
      * while tethering is off.
      */
     fun isEnabled(context: Context): Boolean? {
-        val wifi = context.applicationContext.getSystemService(WifiManager::class.java) ?: return null
+        val wifi = ContextCompat.getSystemService(context.applicationContext, WifiManager::class.java) ?: return null
         return runCatching {
             WifiManager::class.java.getMethod("getWifiApState").invoke(wifi) as Int == WIFI_AP_STATE_ENABLED
         }.recoverCatching {

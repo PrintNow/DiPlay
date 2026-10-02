@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay
 
 import android.content.Context
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.airplay.AirPlayIdentity
 import com.shilapi.xcertplay.mfi.LocalMfiAuthenticationClient
 import com.shilapi.xcertplay.orchestration.MfiTarget
@@ -13,9 +14,9 @@ internal object DiPlayBootstrap {
 
     @Synchronized fun ensure(context: Context) {
         if (ready) return
-        val target = File(context.noBackupFilesDir, LocalMfiAuthenticationClient.DIRECTORY)
+        val target = File(ContextCompat.getNoBackupFilesDir(context), LocalMfiAuthenticationClient.DIRECTORY)
         if (!target.exists()) {
-            val staging = File(context.noBackupFilesDir, "offline-mfi-staging")
+            val staging = File(ContextCompat.getNoBackupFilesDir(context), "offline-mfi-staging")
             staging.deleteRecursively()
             check(staging.mkdirs()) { "Could not prepare local authentication" }
             staging.setReadable(false, false); staging.setReadable(true, true)

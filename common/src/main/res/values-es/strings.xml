@@ -14,6 +14,10 @@
     <string name="marker_centre_default">Centro · predeterminado</string>
     <string name="hotspot_mode_manual_desc">Usa el punto de acceso propio del coche. Selecciona 5 GHz en la configuración del coche si está disponible.</string>
     <string name="hotspot_mode_p2p_desc">Configuración alternativa. Requiere el interruptor Wi‑Fi del coche; en 2,4 GHz la conexión puede trabarse.</string>
+    <string name="diplay_hotspot">Punto de acceso de DiPlay</string>
+    <string name="hotspot_hint_app">Punto de acceso de DiPlay · Mantén activados el Bluetooth y el Wi-Fi del iPhone. El Wi-Fi del coche se apaga mientras CarPlay está en uso.</string>
+    <string name="hotspot_mode_app_desc">Para Android 4.4–5.1. DiPlay activa por sí mismo el punto de acceso del coche; no hay nada que configurar.</string>
+    <string name="hotspot_mode_app_details">Al conectar, DiPlay activa el punto de acceso del coche con su propio nombre y contraseña, y después restaura tu configuración del punto de acceso y el interruptor de Wi-Fi. Durante CarPlay el coche no puede usar internet por Wi-Fi.</string>
     <string name="hotspot_details_off">El punto de acceso está apagado · Actívalo en la configuración del coche.</string>
     <string name="hotspot_details_saved">Datos guardados · Comprueba que el punto de acceso del coche esté activado antes de conectarte.</string>
     <string name="permission_enabled_ready">Permiso activado · listo para usar</string>

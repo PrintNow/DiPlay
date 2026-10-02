@@ -281,7 +281,7 @@ class AndroidMediaSink(
     }
 
     override fun onMicrophoneStarted(id: AudioStreamId, config: MicrophoneConfig) {
-        val uplink = microphoneUplinks.computeIfAbsent(id) { MicrophoneUplink(config) }
+        val uplink = microphoneUplinks.getOrCreate(id) { MicrophoneUplink(config) }
         if (!uplink.start()) microphoneUplinks.remove(id, uplink)
     }
 
@@ -314,7 +314,7 @@ class AndroidMediaSink(
     }
 
     private fun videoDecoder(type: Int): VideoDecoder =
-        videoDecoders.computeIfAbsent(type) { newVideoDecoder(type, surfaces[type] ?: defaultSurface) }
+        videoDecoders.getOrCreate(type) { newVideoDecoder(type, surfaces[type] ?: defaultSurface) }
 
     private fun newVideoDecoder(type: Int, surface: Surface?, statsLabel: String? = null) = VideoDecoder(
         type,
@@ -773,7 +773,7 @@ private class AudioRenderer(
             packetsReceived.incrementAndGet()
             val now = System.nanoTime()
             val previous = lastArrivalNs.getAndSet(now)
-            if (previous != 0L) maxArrivalGapMs.accumulateAndGet((now - previous) / 1_000_000L, ::maxOf)
+            if (previous != 0L) maxArrivalGapMs.raiseTo((now - previous) / 1_000_000L)
         }
         if (!started || !queue.offer(AudioPacket(rtp, sample))) {
             if (started) packetsDropped.incrementAndGet()
@@ -1370,5 +1370,20 @@ private class AudioRenderer(
         const val STATS_TAG = "DiPlay-AudioStats"
         const val STATS_WINDOW_NS = 5_000_000_000L
         const val DECODED_BUFFER_LOG_INTERVAL = 50
+    }
+}
+
+/**
+ * ConcurrentHashMap.computeIfAbsent needs API 24. The lock keeps [create], which may open a codec
+ * or recorder, from running twice for one key.
+ */
+private fun <K : Any, V : Any> ConcurrentHashMap<K, V>.getOrCreate(key: K, create: () -> V): V =
+    get(key) ?: synchronized(this) { get(key) ?: create().also { put(key, it) } }
+
+/** AtomicLong.accumulateAndGet(value, ::maxOf) without the API 24 method. */
+private fun AtomicLong.raiseTo(value: Long) {
+    while (true) {
+        val current = get()
+        if (value <= current || compareAndSet(current, value)) return
     }
 }

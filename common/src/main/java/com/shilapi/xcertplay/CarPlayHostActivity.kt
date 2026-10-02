@@ -46,6 +46,7 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -461,7 +462,7 @@ class CarPlayHostActivity : ComponentActivity() {
         )
         val reusedBackgroundSession = adoptBackgroundSession()
         microphoneAvailable =
-            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         microphonePermissionResolved = microphoneAvailable
         if (reusedBackgroundSession) {
             updateDebugOverlays()
@@ -540,7 +541,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun hasFineLocationPermission(): Boolean =
-        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
     private fun requestVpnConsent() {
@@ -556,7 +557,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun requestWirelessPermissions() {
         val permissions = requiredWirelessPermissions()
-        if (permissions.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
+        if (permissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
             wirelessPermissionsReady = true
             updateHotspotStatusBlock()
             maybeStartCarPlay()
@@ -570,7 +571,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun hasRequiredWirelessPermissions(): Boolean =
         requiredWirelessPermissions().all {
-            checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
 
     private fun requiredWirelessPermissions(): List<String> = when {
@@ -626,7 +627,9 @@ class CarPlayHostActivity : ComponentActivity() {
         advancedAudioChannelMapping =
             advancedAudioChannelMappingSupported &&
                 AirPlayPersistence.loadAdvancedAudioChannelMapping(this)
-        if (DiLink51ClusterLayout.automatic(this) && clusterMonitor == null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 &&
+            DiLink51ClusterLayout.automatic(this) && clusterMonitor == null
+        ) {
             clusterMonitor = DiLink51ClusterMonitor(this, ::onClusterActivityState).also { it.start() }
         } else if (!DiLink51ClusterLayout.automatic(this)) {
             clusterMonitor?.stop()
@@ -805,7 +808,7 @@ class CarPlayHostActivity : ComponentActivity() {
             return
         }
         // Without Usage Access the card shows over any app, as before.
-        if (HomeScreenMonitor.hasAccess(this)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && UsageAccess.granted(this)) {
             val monitor = homeMonitor ?: HomeScreenMonitor(this, ::onHomeScreenVisible).also { homeMonitor = it }
             if (!monitor.running) {
                 monitor.start() // its first answer shows the card
@@ -2397,6 +2400,9 @@ class CarPlayHostActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 add(WirelessHotspotMode.WIFI_P2P to getString(R.string.wi_fi_p2p_5_ghz))
             }
+            if (WirelessHotspotMode.APP_HOTSPOT.supported() == WirelessHotspotMode.APP_HOTSPOT) {
+                add(WirelessHotspotMode.APP_HOTSPOT to getString(R.string.diplay_hotspot))
+            }
             add(WirelessHotspotMode.MANUAL to getString(R.string.built_in_car_hotspot))
         }
         var selectedId = View.NO_ID
@@ -2607,6 +2613,7 @@ class CarPlayHostActivity : ComponentActivity() {
         WirelessHotspotMode.WIFI_P2P -> getString(R.string.wi_fi_p2p_5_ghz)
         WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> getString(R.string.localonlyhotspot)
         WirelessHotspotMode.MANUAL -> getString(R.string.manual_hotspot)
+        WirelessHotspotMode.APP_HOTSPOT -> getString(R.string.diplay_hotspot)
     }
 
     private fun menuText(
