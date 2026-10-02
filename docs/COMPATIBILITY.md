@@ -4,7 +4,7 @@ This public preview is an independent receiver, not an Apple-certified CarPlay a
 
 | Area | Current scope |
 | --- | --- |
-| Head unit | Android 9+ APK; wireless Wi-Fi Direct path needs Android 10+ |
+| Head unit | Android 4.4+ phone APK (`mobile`; Android 4.4 support is untested on hardware, see [Android 4.4](ANDROID_4.4_PORT_PLAN.md)); wireless Wi-Fi Direct path needs Android 10+; the automotive APK needs Android 9+ |
 | Phone | Standard, non-jailbroken iPhone with CarPlay enabled; device/iOS compatibility varies |
 | Physical evidence | Previous private builds: wired and wireless picture, touch and audio confirmed on the development car with iPhone XS / iOS 18.7.10 |
 | Other cars | Mixed community reports across DiLink generations; not a certified model support list |
@@ -15,6 +15,15 @@ This public preview is an independent receiver, not an Apple-certified CarPlay a
 ## BYD HUD and car hotspot
 
 See [BYD navigation](BYD_NAVIGATION.md) for the exact verified firmware and lifecycle limits. Car hotspot now starts CarPlay on the development car using scoped IPv6. The phone must join the configured car hotspot. Neither result guarantees support on every firmware.
+
+## Android 4.4 to 5.1
+
+Wired CarPlay and wireless CarPlay through a hotspot are implemented, but no Android 4.4 head unit has been tested yet. Run the debug probe described in the [port plan](ANDROID_4.4_PORT_PLAN.md) first.
+
+- Wireless uses the "DiPlay hotspot": DiPlay turns on the head unit's own hotspot with its own WPA2 name and password, and restores the owner's hotspot settings and Wi-Fi switch afterwards. The car hotspot mode also remains. Wi-Fi Direct and LocalOnlyHotspot are not offered.
+- These hotspots are usually 2.4 GHz only; use 30 fps and a lower resolution.
+- H.264 only (no HEVC); no Opus audio or microphone; PCM and AAC are used instead.
+- Not available: the launcher map embed (Android 11+), Usage Access features (Android 5.1+), the Android Auto car-app service.
 
 ## Known limitations
 

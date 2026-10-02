@@ -4,4 +4,6 @@
     <application android:label="DiPlay HUD Test" tools:replace="android:label">
     <receiver android:name="com.shilapi.xcertplay.hud.StarterBridgeReceiver" android:exported="true" android:permission="android.permission.DUMP" />
     <activity android:name="com.shilapi.xcertplay.hud.StandaloneHudDemoActivity" android:exported="true" android:permission="android.permission.DUMP" />
+    <!-- Android 4.4 platform checks; adb shell am start -n com.shihab.diplay.hudtest/com.shilapi.xcertplay.probe.LegacyPlatformProbeActivity -->
+    <activity android:name="com.shilapi.xcertplay.probe.LegacyPlatformProbeActivity" android:exported="true" />
     </application></manifest>

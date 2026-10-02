@@ -1305,6 +1305,8 @@ class CarPlayHostActivity : ComponentActivity() {
         )
         val hevcSwitch = Switch(this).apply {
             isChecked = hevcEnabled
+            // Android 4.4 head units have no HEVC decoder; H.264 is the only choice there.
+            isEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
             contentDescription = getString(R.string.hevc_h_265_video_transport)
             showTextCompat = false
             thumbTintCompat = ColorStateList(

@@ -50,6 +50,10 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+    packaging {
+        // Match shared's ABIs: Conscrypt also ships 32-bit x86, which DiPlay's own libraries lack.
+        jniLibs.excludes += "lib/x86/**"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
