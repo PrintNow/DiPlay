@@ -1,8 +1,6 @@
 package com.shilapi.xcertplay
 
 import android.Manifest
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -11,6 +9,11 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.core.app.NotificationChannelCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.PendingIntentCompat
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.host.R
 
 /** Keeps an explicitly started connection alive when another car app is in the foreground. */
@@ -22,25 +25,26 @@ class DiPlaySessionService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "CarPlay connection", NotificationManager.IMPORTANCE_LOW))
-        val open = PendingIntent.getActivity(this, 0, Intent(this, CarPlayHostActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val stop = PendingIntent.getService(this, 1, Intent(this, DiPlaySessionService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = Notification.Builder(this, CHANNEL)
+        NotificationManagerCompat.from(this).createNotificationChannel(
+            NotificationChannelCompat.Builder(CHANNEL, NotificationManager.IMPORTANCE_LOW).setName("CarPlay connection").build(),
+        )
+        val open = PendingIntentCompat.getActivity(this, 0, Intent(this, CarPlayHostActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT, false)
+        val stop = PendingIntentCompat.getService(this, 1, Intent(this, DiPlaySessionService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT, false)
+        val notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_diplay_notification)
             .setContentTitle("DiPlay")
             .setContentText("CarPlay connection running")
             .setContentIntent(open).setOngoing(true)
-            .addAction(Notification.Action.Builder(null, "Disconnect", stop).build()).build()
+            .addAction(NotificationCompat.Action.Builder(0, "Disconnect", stop).build()).build()
         if (Build.VERSION.SDK_INT >= 29) {
             var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-            if (Build.VERSION.SDK_INT >= 30 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            if (Build.VERSION.SDK_INT >= 30 && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                 types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             }
             // Without it Android stops location updates while another car app (the reversing camera,
             // the car's own map) covers CarPlay, and the iPhone gets no position until DiPlay is back.
             if (AirPlayPersistence.loadLocationReportingEnabled(this) &&
-                checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                 types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
             }
             startForeground(1, notification, types)

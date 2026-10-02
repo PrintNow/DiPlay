@@ -1,5 +1,6 @@
 package com.shilapi.xcertplay.orchestration
 
+import android.os.Build
 import com.shilapi.xcertplay.transport.Iap2IdentificationConfig
 import com.shilapi.xcertplay.transport.UsbDeviceId
 import com.shilapi.xcertplay.network.WifiP2pChannels
@@ -23,6 +24,26 @@ enum class WirelessHotspotMode {
     LOCAL_ONLY_HOTSPOT,
     MANUAL,
     EXISTING_WIFI,
+    /** DiPlay starts the device hotspot itself on Android 4.4–5.1. */
+    APP_HOTSPOT,
+    ;
+
+    fun supported(sdkInt: Int = Build.VERSION.SDK_INT): WirelessHotspotMode {
+        val fallback = if (sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE) APP_HOTSPOT else MANUAL
+        return when (this) {
+            LOCAL_ONLY_HOTSPOT -> fallback
+            WIFI_P2P -> if (sdkInt >= Build.VERSION_CODES.Q) this else fallback
+            APP_HOTSPOT -> fallback
+            EXISTING_WIFI, MANUAL -> this
+        }
+    }
+
+    companion object {
+        const val APP_HOTSPOT_MAX_SDK_EXCLUSIVE = Build.VERSION_CODES.M
+
+        fun default(sdkInt: Int = Build.VERSION.SDK_INT): WirelessHotspotMode =
+            if (sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE) APP_HOTSPOT else MANUAL
+    }
 }
 
 enum class ManualHotspotBand {

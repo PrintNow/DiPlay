@@ -19,6 +19,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.charset.StandardCharsets
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -148,7 +149,7 @@ class CarPlayBonjour(
     private val services = LinkedBlockingQueue<NsdServiceInfo>()
     private val interfaceServices = LinkedBlockingQueue<Pair<CarPlayBonjourEndpoint, InetAddress>>()
     private val discoveryEvents = LinkedBlockingQueue<CarPlayBonjourEvent.Discovery>(32)
-    private val seenServices = ConcurrentHashMap.newKeySet<String>()
+    private val seenServices: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
     private val lifecycleLock = Any()
     private val localAdvertisedAddress = advertisedHostAddress()
     private val advertisedAddresses = (listOfNotNull(localAdvertisedAddress) + additionalAddresses).distinct()
@@ -167,7 +168,7 @@ class CarPlayBonjour(
             "connectProbe2xx=${successfulProbeCount.get()} lastProbe=${lastProbe.get()} " +
             "mdnsFamilies=$publishedFamilies"
     private val multicastLock = (context.applicationContext ?: context)
-        .getSystemService(WifiManager::class.java)
+        .getSystemService(Context.WIFI_SERVICE).let { it as WifiManager }
         .createMulticastLock("carplay-bonjour").apply { setReferenceCounted(false) }
 
     private var started = false
@@ -359,8 +360,11 @@ class CarPlayBonjour(
             serviceName = config.deviceName
             serviceType = AIRPLAY_SERVICE_TYPE
             port = config.port
-            CarPlayBonjourProtocol.airPlayTxtRecords(config, identity).forEach { (key, value) ->
-                setAttribute(key, value)
+            // TXT records need API 21; on Android 4.4 the jmdns interface path advertises them.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                CarPlayBonjourProtocol.airPlayTxtRecords(config, identity).forEach { (key, value) ->
+                    setAttribute(key, value)
+                }
             }
             localAdvertisedAddress?.let(::setHost)
         }
@@ -427,7 +431,8 @@ class CarPlayBonjour(
         if (port !in 1..65535) return
         val serviceName = resolved.serviceName ?: service.serviceName ?: return
         val host = address.hostAddress ?: return
-        val bluetoothId = resolved.attributes
+        val bluetoothId = resolved.takeIf { Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP }
+            ?.attributes
             ?.get("id")
             ?.let(::decodeTxtValue)
             ?.takeIf { it.isNotBlank() }

@@ -1028,11 +1028,12 @@ class DiPlayActivity : ComponentActivity() {
 
     private fun wirelessLinkControls(parent: LinearLayout) {
         val mode = if (pendingCarHotspotSetup) WirelessHotspotMode.MANUAL else AirPlayPersistence.loadWirelessHotspotMode(this)
-        val modes = listOf(WirelessHotspotMode.MANUAL, WirelessHotspotMode.WIFI_P2P, WirelessHotspotMode.EXISTING_WIFI)
-        val titles = listOf(getString(R.string.built_in_car_hotspot), getString(R.string.wifi_direct), getString(R.string.existing_wifi_title))
+        val legacy = WirelessHotspotMode.APP_HOTSPOT.supported() == WirelessHotspotMode.APP_HOTSPOT
+        val modes = listOf(WirelessHotspotMode.MANUAL, if (legacy) WirelessHotspotMode.APP_HOTSPOT else WirelessHotspotMode.WIFI_P2P, WirelessHotspotMode.EXISTING_WIFI)
+        val titles = listOf(getString(R.string.built_in_car_hotspot), getString(if (legacy) R.string.diplay_hotspot else R.string.wifi_direct), getString(R.string.existing_wifi_title))
         val descriptions = listOf(
             getString(R.string.hotspot_mode_manual_desc),
-            getString(R.string.hotspot_mode_p2p_desc),
+            getString(if (legacy) R.string.hotspot_mode_app_desc else R.string.hotspot_mode_p2p_desc),
             getString(R.string.existing_wifi_description)
         )
         val wide = resources.configuration.screenWidthDp >= 850
@@ -1081,6 +1082,8 @@ class DiPlayActivity : ComponentActivity() {
                     toast(getString(R.string.saved_for_your_next_connection))
                 }
             }, matchButton(12, 60))
+        } else if (mode == WirelessHotspotMode.APP_HOTSPOT) {
+            parent.addView(label(getString(R.string.hotspot_mode_app_details), 16, MUTED))
         } else {
             parent.addView(label(getString(R.string.turn_the_car_s_wi_fi_switch_on_allow_location_nearby_devic), 16, MUTED))
             wifiDirectChannelControl(parent)

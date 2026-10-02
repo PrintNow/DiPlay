@@ -27,6 +27,10 @@
     <string name="marker_centre_default">الوسط · الافتراضي</string>
     <string name="hotspot_mode_manual_desc">استخدم نقطة اتصال السيارة نفسها. اختر 5 GHz في إعدادات السيارة إن توفر.</string>
     <string name="hotspot_mode_p2p_desc">إعداد بديل. يتطلب تشغيل مفتاح واي فاي السيارة؛ وقد يتقطّع الاتصال على 2.4 GHz.</string>
+    <string name="diplay_hotspot">نقطة اتصال DiPlay</string>
+    <string name="hotspot_hint_app">نقطة اتصال DiPlay · أبقِ البلوتوث وWi-Fi في iPhone قيد التشغيل. يتوقف Wi-Fi في السيارة أثناء تشغيل CarPlay.</string>
+    <string name="hotspot_mode_app_desc">لنظام Android 4.4–5.1. يشغّل DiPlay نقطة اتصال السيارة بنفسه، ولا يلزم أي إعداد.</string>
+    <string name="hotspot_mode_app_details">عند الاتصال يشغّل DiPlay نقطة اتصال السيارة باسم وكلمة مرور خاصين به، ثم يعيد إعدادات نقطة الاتصال ومفتاح Wi-Fi كما كانت. لا تستطيع السيارة استخدام الإنترنت عبر Wi-Fi أثناء CarPlay.</string>
     <string name="hotspot_details_off">نقطة الاتصال مُغلقة · شغّلها في إعدادات السيارة.</string>
     <string name="hotspot_details_saved">تم حفظ البيانات · تأكد من تشغيل نقطة اتصال السيارة قبل الاتصال.</string>
     <string name="permission_enabled_ready">الإذن مُفعّل · جاهز للاستخدام</string>

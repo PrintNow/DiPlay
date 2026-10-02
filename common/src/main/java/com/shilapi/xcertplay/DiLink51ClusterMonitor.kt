@@ -1,17 +1,19 @@
 package com.shilapi.xcertplay
 
-import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.Process
 import android.os.SystemClock
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** Uses the owner's standard Android Usage Access grant, never the privileged BYD API. */
+@RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1) // Usage Access
 internal class DiLink51ClusterMonitor(context: Context, private val onState: (ClusterActivityState.Snapshot) -> Unit) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
@@ -41,7 +43,7 @@ internal class DiLink51ClusterMonitor(context: Context, private val onState: (Cl
         if (stopped) return
         val now = System.currentTimeMillis()
         val snapshot = try {
-            if (!hasAccess(context)) {
+            if (!UsageAccess.granted(context)) {
                 state = ClusterActivityState()
                 seen.clear()
                 since = bootTime()
@@ -51,7 +53,7 @@ internal class DiLink51ClusterMonitor(context: Context, private val onState: (Cl
                     seen.clear()
                     since = bootTime()
                 }
-                val events = context.getSystemService(UsageStatsManager::class.java).queryEvents(since, now)
+                val events = ContextCompat.getSystemService(context, UsageStatsManager::class.java)?.queryEvents(since, now)
                     ?: throw IllegalStateException("Usage events unavailable")
                 val event = UsageEvents.Event()
                 while (events.hasNextEvent()) {
@@ -76,10 +78,5 @@ internal class DiLink51ClusterMonitor(context: Context, private val onState: (Cl
             state.snapshot() // No reliable signal means no overlay.
         }
         handler.post { if (!stopped) onState(snapshot) }
-    }
-
-    companion object {
-        fun hasAccess(context: Context): Boolean = context.getSystemService(AppOpsManager::class.java)
-            .checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName) == AppOpsManager.MODE_ALLOWED
     }
 }
