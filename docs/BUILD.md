@@ -31,14 +31,69 @@ The public release source archive corresponds to the tagged source and excludes 
 
 ## Standalone car-test APK
 
-Use `:mobile:assembleStandaloneDebug` for a test APK that must connect to an iPhone:
+An iPhone only accepts DiPlay after accessory authentication. `assembleDebug` contains no
+accessory identity, so the iPhone rejects it; use `:mobile:assembleStandaloneDebug` for any APK
+that must connect to an iPhone. The app module is `:mobile` (there is no `:app`).
 
-```sh
-DIPLAY_AUTH_ASSETS_DIR=/absolute/path/to/runtime-assets ./gradlew :mobile:assembleStandaloneDebug
-```
+1. Check out the source you want to test, for example the Android 4.4 work:
 
-This task refuses missing or empty runtime inputs. `assembleDebug` remains an identity-free
-source/CI build when the explicit asset input is absent; do not install that output as a
-standalone car-test package. Before delivery, verify both `assets/offline-mfi/identity.pk8`
-and `assets/offline-mfi/certificate.p7b` in the APK against the selected local inputs.
-Update the existing test app without uninstalling it to preserve its settings.
+   ```sh
+   git fetch origin
+   git checkout feat/android-4.4
+   ```
+
+2. Prepare a runtime asset directory **outside the repository**. It must contain exactly these
+   two non-empty files, which never belong in Git:
+
+   ```text
+   /absolute/path/to/runtime-assets/
+   └── offline-mfi/
+       ├── identity.pk8
+       └── certificate.p7b
+   ```
+
+   Any other key or certificate file (`*.pem`, `*.key`, `*.p12`, `*.jks`, …) in an APK asset
+   directory fails the build.
+
+3. Build with an absolute `DIPLAY_AUTH_ASSETS_DIR` (a relative path is resolved against
+   `mobile/`):
+
+   ```sh
+   DIPLAY_AUTH_ASSETS_DIR=/absolute/path/to/runtime-assets ./gradlew :mobile:assembleStandaloneDebug
+   ```
+
+   The task fails if the variable is unset or either file is missing or empty. Output:
+   `mobile/build/outputs/apk/debug/mobile-debug.apk`, package `com.shihab.diplay.hudtest`
+   (version name `…-hud-test`), which installs beside a release DiPlay.
+
+4. Verify that the APK carries the selected files before installing or sharing it:
+
+   ```sh
+   unzip -l mobile/build/outputs/apk/debug/mobile-debug.apk | grep offline-mfi
+   unzip -p mobile/build/outputs/apk/debug/mobile-debug.apk assets/offline-mfi/identity.pk8 | shasum -a 256
+   shasum -a 256 /absolute/path/to/runtime-assets/offline-mfi/identity.pk8
+   ```
+
+   Repeat the comparison for `certificate.p7b`. The APK contains an extractable identity: do not
+   publish it.
+
+5. Install on the head unit (or any Android device acting as one), updating in place so settings
+   and pairing records are kept:
+
+   ```sh
+   adb install -r mobile/build/outputs/apk/debug/mobile-debug.apk
+   ```
+
+6. On Android 4.4–5.1, run the platform probe first and check its results (native libraries,
+   H.264 decoder, Conscrypt TLSv1.2, DiPlay hotspot); see the
+   [Android 4.4 notes](ANDROID_4.4_PORT_PLAN.md):
+
+   ```sh
+   adb shell am start -n com.shihab.diplay.hudtest/com.shilapi.xcertplay.probe.LegacyPlatformProbeActivity
+   adb logcat -s DiPlayProbe
+   ```
+
+7. Connect as described in the [installation guide](INSTALL.md): pair the iPhone over Bluetooth
+   and use **Connect phone** (on Android 4.4–5.1 the default wireless link is the DiPlay hotspot),
+   or **Connect with USB** through a data port or USB OTG adapter. After reproducing a problem,
+   save a diagnostic report and collect `adb logcat`.
