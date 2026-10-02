@@ -1360,7 +1360,7 @@ class CarPlayController(
                 permissionPollGeneration++
                 when (phase) {
                     Phase.REENUMERATION, Phase.IPHONE -> {
-                        if (IphoneCarPlayConfiguration.find(result.device) != null) {
+                        if (IphoneCarPlayConfiguration.find(result.device) { usbManager.openDevice(result.device) } != null) {
                             openDataPaths(result.device)
                         } else if (reenumerationAttempts < MAXIMUM_REENUMERATION_ATTEMPTS) {
                             beginReenumeration(result.device)
@@ -1470,7 +1470,7 @@ class CarPlayController(
     }
 
     private fun openNcm(device: UsbDevice): NcmUsbBridge {
-        val configuration = IphoneCarPlayConfiguration.find(device)
+        val configuration = IphoneCarPlayConfiguration.find(device) { usbManager.openDevice(device) }
             ?: throw IphoneUsbException.Protocol(
                 "iPhone exposes no CarPlay configuration for NCM",
             )

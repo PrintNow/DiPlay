@@ -37,3 +37,8 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.20.0")
     testImplementation(libs.jmdns)
 }
+
+tasks.withType<Test>().configureEach {
+    // Conscrypt is bundled for Android 4.4 TLS 1.2; its AAR has no host library for Robolectric.
+    systemProperty("robolectric.conscryptMode", "OFF")
+}

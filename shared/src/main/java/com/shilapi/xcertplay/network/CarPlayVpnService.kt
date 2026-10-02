@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
@@ -16,6 +17,7 @@ import com.shilapi.xcertplay.airplay.AirPlayMediaHandler
 import com.shilapi.xcertplay.airplay.AirPlaySession
 import com.shilapi.xcertplay.airplay.AirPlaySessionListener
 import com.shilapi.xcertplay.airplay.PairingStore
+import com.shilapi.xcertplay.compat.LegacyPlatformNative
 import com.shilapi.xcertplay.mfi.MfiAuthenticator
 import com.shilapi.xcertplay.transport.NcmUsbBridge
 import java.io.IOException
@@ -92,17 +94,25 @@ class CarPlayVpnService : VpnService() {
             }
             require(hostMac.size == 6) { "hostMac must be 6 bytes" }
 
-            val tunFd = Builder()
+            val builder = Builder()
                 .addAddress(linkLocal, LINK_PREFIX)
                 .addRoute(LINK_LOCAL_ROUTE, LINK_PREFIX)
                 .setSession(SESSION_NAME)
                 .setMtu(TUN_MTU)
-                .setBlocking(true)
                 // An empty app list routes every UID through this VPN. Scope it before establish;
                 // rejection must reach the existing attachment cleanup, never an unscoped retry.
                 .addAllowedApplication(packageName)
-                .establish()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) builder.setBlocking(true)
+            val tunFd = builder.establish()
                 ?: throw IOException("VpnService.establish returned null")
+            // Android 4.4 opens the tun device non-blocking and has no setBlocking.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+                val result = LegacyPlatformNative.clearNonBlocking(tunFd.fd)
+                if (result != 0) {
+                    tunFd.close()
+                    throw IOException("Could not make the VPN interface blocking (result=$result)")
+                }
+            }
             tun = tunFd
 
             val ipv6Bridge = Ipv6NcmBridge(ncm, tunFd, hostMac) { error ->

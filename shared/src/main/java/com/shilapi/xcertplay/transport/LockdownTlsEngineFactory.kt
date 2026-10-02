@@ -12,7 +12,7 @@ import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import com.shilapi.xcertplay.compat.Base64Compat
 import javax.net.ssl.KeyManagerFactory
-import javax.net.ssl.SSLContext
+import com.shilapi.xcertplay.compat.TlsCompat
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.X509TrustManager
 
@@ -44,7 +44,7 @@ object LockdownTlsEngineFactory {
             val keyManagers = KeyManagerFactory.getInstance("PKIX").apply {
                 init(keyStore, password)
             }.keyManagers
-            val context = SSLContext.getInstance("TLS").apply {
+            val context = TlsCompat.sslContext().apply {
                 init(keyManagers, arrayOf(UsbLockdownTrustManager), null)
             }
             return context.createSSLEngine(PEER_HOST, PEER_PORT).apply {

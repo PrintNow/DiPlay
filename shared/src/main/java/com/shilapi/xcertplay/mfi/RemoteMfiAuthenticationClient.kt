@@ -1,5 +1,6 @@
 package com.shilapi.xcertplay.mfi
 
+import com.shilapi.xcertplay.compat.TlsCompat
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -9,6 +10,7 @@ import java.security.MessageDigest
 import com.shilapi.xcertplay.compat.Base64Compat
 import java.util.UUID
 import com.shilapi.xcertplay.iap2.message.Iap2AuthenticationMessages
+import javax.net.ssl.HttpsURLConnection
 
 /** Blocking HTTP implementation of the MFI certificate and challenge-signing operations. */
 class RemoteMfiAuthenticationClient(
@@ -214,6 +216,10 @@ class RemoteMfiAuthenticationClient(
 
     private fun execute(method: String, path: String, requestBody: String?): HttpResponse {
         val connection = URL(baseAddress + path).openConnection() as HttpURLConnection
+        if (connection is HttpsURLConnection) {
+            // Android 4.4 leaves TLS 1.2 disabled on its own sockets.
+            TlsCompat.legacySocketFactory()?.let { connection.sslSocketFactory = it }
+        }
         try {
             connection.requestMethod = method
             connection.connectTimeout = connectTimeoutMillis

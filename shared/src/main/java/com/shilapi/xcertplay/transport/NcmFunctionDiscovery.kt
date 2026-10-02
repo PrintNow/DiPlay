@@ -1,9 +1,7 @@
 package com.shilapi.xcertplay.transport
 
-import android.hardware.usb.UsbConfiguration
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbEndpoint
-import android.hardware.usb.UsbInterface
 
 /**
  * Finds the NCM control/data interface pair inside an active iPhone configuration.
@@ -21,18 +19,18 @@ object NcmFunctionDiscovery {
     const val DATA_ALTERNATE_SETTING = 1
 
     data class NcmFunction(
-        val control: UsbInterface,
-        val data: UsbInterface,
+        val control: UsbInterfaceInfo,
+        val data: UsbInterfaceInfo,
         val statusIn: UsbEndpoint?,
         val bulkIn: UsbEndpoint,
         val bulkOut: UsbEndpoint,
     )
 
-    fun find(configuration: UsbConfiguration): NcmFunction? {
+    fun find(configuration: UsbConfigurationInfo): NcmFunction? {
         return findCdcNcm(configuration)
     }
 
-    private fun findCdcNcm(configuration: UsbConfiguration): NcmFunction? {
+    private fun findCdcNcm(configuration: UsbConfigurationInfo): NcmFunction? {
         val control = interfaces(configuration).firstOrNull {
             it.interfaceClass == CONTROL_CLASS && it.interfaceSubclass == CONTROL_SUBCLASS
         } ?: return null
@@ -41,8 +39,7 @@ object NcmFunctionDiscovery {
             .minByOrNull { if (it.alternateSetting == DATA_ALTERNATE_SETTING) 0 else 1 }
             ?: return null
         val endpoints = bulkEndpoints(data) ?: return null
-        val statusIn = (0 until control.endpointCount)
-            .map(control::getEndpoint)
+        val statusIn = control.endpoints
             .singleOrNull {
                 it.direction == UsbConstants.USB_DIR_IN &&
                     it.type == UsbConstants.USB_ENDPOINT_XFER_INT
@@ -50,11 +47,10 @@ object NcmFunctionDiscovery {
         return NcmFunction(control, data, statusIn, endpoints.first, endpoints.second)
     }
 
-    private fun interfaces(configuration: UsbConfiguration): List<UsbInterface> =
-        (0 until configuration.interfaceCount).map(configuration::getInterface)
+    private fun interfaces(configuration: UsbConfigurationInfo): List<UsbInterfaceInfo> = configuration.interfaces
 
-    private fun bulkEndpoints(usbInterface: UsbInterface): Pair<UsbEndpoint, UsbEndpoint>? {
-        val endpoints = (0 until usbInterface.endpointCount).map(usbInterface::getEndpoint)
+    private fun bulkEndpoints(usbInterface: UsbInterfaceInfo): Pair<UsbEndpoint, UsbEndpoint>? {
+        val endpoints = usbInterface.endpoints
         val input = endpoints.singleOrNull {
             it.direction == UsbConstants.USB_DIR_IN && it.type == UsbConstants.USB_ENDPOINT_XFER_BULK
         }

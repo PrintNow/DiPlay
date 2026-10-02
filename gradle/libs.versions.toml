@@ -14,6 +14,8 @@ bouncycastle = "1.79"
 jmdns = "3.6.3"
 media3 = "1.11.1"
 multidex = "2.0.1"
+# The last Conscrypt for minSdk < 21: TLS 1.2 on Android 4.4.
+conscrypt = "2.5.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -36,6 +38,7 @@ jmdns = { group = "org.jmdns", name = "jmdns", version.ref = "jmdns" }
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
+conscrypt = { group = "org.conscrypt", name = "conscrypt-android", version.ref = "conscrypt" }
 androidx-multidex = { group = "androidx.multidex", name = "multidex", version.ref = "multidex" }
 
 [plugins]
