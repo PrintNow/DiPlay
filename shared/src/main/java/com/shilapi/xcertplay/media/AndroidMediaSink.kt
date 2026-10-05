@@ -734,6 +734,13 @@ private fun MediaFormat.intOrNull(key: String): Int? =
         }
     }
 
+/**
+ * [AudioTrack.audioAttributes] is unavailable before Android 10.  The attributes used to build
+ * the track are therefore also the authoritative focus attributes on older releases.
+ */
+internal fun audioTrackAttributesForFocus(track: AudioTrack, fallback: AudioAttributes): AudioAttributes =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) track.audioAttributes else fallback
+
 /** Decodes AAC-LC/Opus to PCM and plays it, or plays wired LPCM directly. */
 private class AudioRenderer(
     val format: AudioFormat,

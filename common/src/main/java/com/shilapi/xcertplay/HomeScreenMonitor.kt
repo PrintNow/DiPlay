@@ -43,7 +43,7 @@ internal class HomeScreenMonitor(context: Context, private val onChange: (Boolea
         foregroundListener = listener
 
         // UsageStatsManager poller fallback
-        if (DiLink51ClusterMonitor.hasAccess(context)) {
+        if (UsageAccess.granted(context)) {
             since = System.currentTimeMillis() - FIRST_LOOK_BACK_MILLIS
             newestTime = 0L
             newestPackage = null
@@ -125,7 +125,7 @@ internal class HomeScreenMonitor(context: Context, private val onChange: (Boolea
         )
 
         // Accessibility alone is not a foreground source: this PR has no service dispatching events.
-        fun hasAccess(context: Context): Boolean = DiLink51ClusterMonitor.hasAccess(context)
+        fun hasAccess(context: Context): Boolean = UsageAccess.granted(context)
 
         /** Query all launcher packages declared on the system. */
         fun queryHomePackages(context: Context): Set<String> {
