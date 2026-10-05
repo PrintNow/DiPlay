@@ -1,0 +1,6 @@
+# Copy this file to release-signing.properties (which is ignored by Git) and fill in all values.
+# The keystore path is resolved from the repository root unless it is absolute.
+ANDROID_KEYSTORE_PATH=/absolute/path/to/diplay-release.jks
+ANDROID_KEYSTORE_PASSWORD=replace-with-keystore-password
+ANDROID_KEY_ALIAS=replace-with-key-alias
+ANDROID_KEY_PASSWORD=replace-with-key-password

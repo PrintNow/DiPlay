@@ -21,10 +21,24 @@ The resulting source-only APK contains no accessory identity. Standalone CarPlay
 
 Provide an external asset directory using `DIPLAY_AUTH_ASSETS_DIR`. The directory must contain exactly the intended runtime files under `offline-mfi/identity.pk8` and `offline-mfi/certificate.p7b`. Neither file belongs in Git. The build permits those two files only when this explicit input is set and rejects unexpected credential containers elsewhere in APK assets.
 
-Set `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` locally for your Android signing key. Never commit these values or the keystore. Different signing keys cannot update an existing project-signed installation.
+Use the **same keystore bytes, passwords, and alias as GitHub Actions**. Either set
+`ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+`ANDROID_KEY_PASSWORD` in the environment, or copy `release-signing.properties.example` to the
+ignored root file `release-signing.properties` and fill in all four values. Environment variables
+take precedence over Gradle properties, which take precedence over the local file. A source is
+atomic: if it contains any one signing value, it must contain all four, so values cannot be
+accidentally mixed between local and CI configuration. Relative keystore paths are resolved from
+the repository root. Never commit these values or the keystore.
+
+Every release signing validation checks that the key can be unlocked and that its certificate
+SHA-256 is `87b38b12788dcb202a961215f2572e30ec2dc9d8ef4bc070d05f77e49291a363`, the certificate used by
+the existing DiPlay releases. This prevents a locally generated or stale GitHub key from producing
+an APK that cannot update the published app. The private key itself still has to be transferred
+through the project's secure key backup; GitHub does not allow downloading a secret after it has
+been stored.
 
 ```sh
-./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :mobile:lintRelease :mobile:assembleRelease
+./gradlew verifyAndroidReleaseSigning :shared:testDebugUnitTest :common:testDebugUnitTest :mobile:lintRelease :mobile:assembleRelease
 ```
 
 Output: `mobile/build/outputs/apk/release/mobile-release.apk`. The release APK deliberately contains the experimental identity described in the notices; it is extractable by recipients. The separate Android signing key is not included. The retired build-beta.py helper is not used; this Gradle workflow uses explicit environment inputs.

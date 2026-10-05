@@ -3,6 +3,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+@Suppress("UNCHECKED_CAST")
+val androidReleaseSigning =
+    rootProject.extra["androidReleaseSigning.values"] as Map<String, String>
+val releaseKeystorePath = androidReleaseSigning["ANDROID_KEYSTORE_PATH"]
+    ?: ".private/release-signing-not-configured.jks"
+
 android {
     namespace = "com.shilapi.xcertplay"
     compileSdk {
@@ -20,13 +26,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file(
-                providers.environmentVariable("ANDROID_KEYSTORE_PATH")
-                    .getOrElse("missing-release-keystore.jks"),
-            )
-            storePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").getOrElse("")
-            keyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").getOrElse("")
-            keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").getOrElse("")
+            storeFile = rootProject.file(releaseKeystorePath)
+            storePassword = androidReleaseSigning["ANDROID_KEYSTORE_PASSWORD"].orEmpty()
+            keyAlias = androidReleaseSigning["ANDROID_KEY_ALIAS"].orEmpty()
+            keyPassword = androidReleaseSigning["ANDROID_KEY_PASSWORD"].orEmpty()
         }
     }
 
