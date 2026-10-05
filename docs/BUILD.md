@@ -29,6 +29,29 @@ Output: `mobile/build/outputs/apk/release/mobile-release.apk`. The release APK d
 
 The public release source archive corresponds to the tagged source and excludes runtime identities, signing keys, local configuration and build output.
 
+## GitHub tag release builds
+
+Pushing a tag matching `v*` (for example `v0.2.13`) runs the **Build and publish APK** workflow.
+It tests, lints and builds the signed release APK, uploads it as a workflow artifact, then attaches
+it and `SHA256SUMS.txt` to the GitHub Release for that tag. It never runs from a pull request.
+
+Create these repository or protected-environment **Actions secrets**. Store file values as a single
+base64 string with no wrapping; on macOS, use `base64 -i FILE | tr -d '\n'`.
+
+| Secret | Value |
+| --- | --- |
+| `DIPLAY_AUTH_IDENTITY_PK8_B64` | `offline-mfi/identity.pk8`, base64 encoded |
+| `DIPLAY_AUTH_CERTIFICATE_P7B_B64` | `offline-mfi/certificate.p7b`, base64 encoded |
+| `ANDROID_KEYSTORE_B64` | The Android release `.jks`/`.keystore`, base64 encoded |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
+| `ANDROID_KEY_ALIAS` | Signing-key alias |
+| `ANDROID_KEY_PASSWORD` | Signing-key password |
+
+The workflow writes these only under the runner's temporary directory, passes their paths via the
+existing build environment variables, and does not upload the keystore or raw credential files.
+The APK necessarily contains the runtime CarPlay identity, so anyone receiving the APK can extract
+it; GitHub Secrets prevent source-repository disclosure, not extraction from a published APK.
+
 ## Standalone car-test APK
 
 An iPhone only accepts DiPlay after accessory authentication. `assembleDebug` contains no

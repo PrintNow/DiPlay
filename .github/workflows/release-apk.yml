@@ -1,0 +1,91 @@
+name: Build and publish APK
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Creating a release and uploading its assets requires write access. The workflow is only
+# triggered by a repository tag or a maintainer's manual dispatch; it never runs for PRs.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject credential files in public source
+        run: python3 scripts/check_public_tree.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore release-only credentials
+        env:
+          DIPLAY_AUTH_IDENTITY_PK8_B64: ${{ secrets.DIPLAY_AUTH_IDENTITY_PK8_B64 }}
+          DIPLAY_AUTH_CERTIFICATE_P7B_B64: ${{ secrets.DIPLAY_AUTH_CERTIFICATE_P7B_B64 }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$DIPLAY_AUTH_IDENTITY_PK8_B64"
+          test -n "$DIPLAY_AUTH_CERTIFICATE_P7B_B64"
+          test -n "$ANDROID_KEYSTORE_B64"
+          install -d -m 700 "$RUNNER_TEMP/diplay-runtime-assets/offline-mfi"
+          printf '%s' "$DIPLAY_AUTH_IDENTITY_PK8_B64" | base64 --decode > "$RUNNER_TEMP/diplay-runtime-assets/offline-mfi/identity.pk8"
+          printf '%s' "$DIPLAY_AUTH_CERTIFICATE_P7B_B64" | base64 --decode > "$RUNNER_TEMP/diplay-runtime-assets/offline-mfi/certificate.p7b"
+          printf '%s' "$ANDROID_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/diplay-release.jks"
+          test -s "$RUNNER_TEMP/diplay-runtime-assets/offline-mfi/identity.pk8"
+          test -s "$RUNNER_TEMP/diplay-runtime-assets/offline-mfi/certificate.p7b"
+          test -s "$RUNNER_TEMP/diplay-release.jks"
+
+      - name: Test, lint and assemble signed release APK
+        env:
+          DIPLAY_AUTH_ASSETS_DIR: ${{ runner.temp }}/diplay-runtime-assets
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/diplay-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :mobile:lintRelease :mobile:assembleRelease --stacktrace
+
+      - name: Prepare release assets
+        id: assets
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          install -d release-assets
+          apk="release-assets/DiPlay-${TAG}.apk"
+          cp mobile/build/outputs/apk/release/mobile-release.apk "$apk"
+          sha256sum "$apk" > release-assets/SHA256SUMS.txt
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiPlay-${{ github.ref_name }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release-assets/*
