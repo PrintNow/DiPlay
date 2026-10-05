@@ -186,6 +186,8 @@ class AirPlayInfoPlistTest {
             btMac = "02:00:00:00:00:02",
             sourceVersion = "366.0",
             main = AirPlayDisplayConfig(widthPixels = 1280, heightPixels = 720),
+            opusOutput = true,
+            opusInput = true,
         )
 
         fun telephony(info: Map<String, Any?>): Map<*, *> =

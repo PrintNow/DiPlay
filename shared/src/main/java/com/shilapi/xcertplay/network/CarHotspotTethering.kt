@@ -1,10 +1,14 @@
 package com.shilapi.xcertplay.network
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.os.Bundle
 import android.os.ResultReceiver
 import android.provider.Settings
+import android.os.Build
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.adb.AdbKeys
 import com.shilapi.xcertplay.adb.LocalAdb
 import java.lang.reflect.InvocationTargetException
@@ -25,9 +29,15 @@ object CarHotspotTethering {
         CANCELLED("Hotspot startup was cancelled"),
     }
 
-    fun permitted(context: Context): Boolean = Settings.System.canWrite(context)
+    fun permitted(context: Context): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        Settings.System.canWrite(context)
+    } else {
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.WRITE_SETTINGS) ==
+            PackageManager.PERMISSION_GRANTED
+    }
 
     /** Blocking; serialize startup and connection requests, checking cancellation after acquiring the lock. */
+    @SuppressLint("SoonBlockedPrivateApi") // Best-effort vendor path; rejection falls back to bounded local ADB.
     fun enable(
         context: Context,
         isCancelled: () -> Boolean,
@@ -39,7 +49,7 @@ object CarHotspotTethering {
         val startReflection: (ResultReceiver) -> Unit = { receiver ->
             val service = ConnectivityManager::class.java.getDeclaredField("mService")
                 .apply { isAccessible = true }
-                .get(context.getSystemService(ConnectivityManager::class.java))
+                .get(ContextCompat.getSystemService(context, ConnectivityManager::class.java))
                 ?: throw NoSuchMethodException("Connectivity service unavailable")
             service.javaClass.getMethod(
                 "startTethering", Int::class.javaPrimitiveType, ResultReceiver::class.java,

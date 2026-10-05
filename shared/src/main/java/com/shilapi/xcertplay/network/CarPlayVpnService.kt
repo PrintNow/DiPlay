@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import androidx.annotation.ChecksSdkIntAtLeast
 import com.shilapi.xcertplay.airplay.AirPlayListenerIdentity
 import com.shilapi.xcertplay.airplay.AirPlayTcpAccepted
 import com.shilapi.xcertplay.airplay.isInternalAirPlayPeer
@@ -26,6 +27,16 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
+
+internal object WiredVpnCompatibility {
+    const val KITKAT_DIAGNOSTIC =
+        "Android 4.4 VPN fallback: global UID scope, link-local IPv6 route only"
+
+    @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.LOLLIPOP)
+    fun supportsPerAppScope(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+
+    fun supportsPerAppScope(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.LOLLIPOP
+}
 
 /**
  * Hosts the AirPlay TCP listener for both NCM/VPN and local-only Wi-Fi transports.
@@ -99,10 +110,16 @@ class CarPlayVpnService : VpnService() {
                 .addRoute(LINK_LOCAL_ROUTE, LINK_PREFIX)
                 .setSession(SESSION_NAME)
                 .setMtu(TUN_MTU)
-                // An empty app list routes every UID through this VPN. Scope it before establish;
-                // rejection must reach the existing attachment cleanup, never an unscoped retry.
-                .addAllowedApplication(packageName)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) builder.setBlocking(true)
+            if (WiredVpnCompatibility.supportsPerAppScope()) {
+                // Scope the VPN to DiPlay on platforms that support per-app VPN. Rejection must
+                // reach attachment cleanup, never an unscoped retry.
+                builder.addAllowedApplication(packageName)
+                builder.setBlocking(true)
+            } else {
+                // KitKat has no per-app VPN. The only route installed above is fe80::/64, so the
+                // global fallback cannot capture ordinary IPv4 or Internet traffic.
+                runCatching { listener.onDebugLog(WiredVpnCompatibility.KITKAT_DIAGNOSTIC) }
+            }
             val tunFd = builder.establish()
                 ?: throw IOException("VpnService.establish returned null")
             // Android 4.4 opens the tun device non-blocking and has no setBlocking.
@@ -110,7 +127,12 @@ class CarPlayVpnService : VpnService() {
                 val result = LegacyPlatformNative.clearNonBlocking(tunFd.fd)
                 if (result != 0) {
                     tunFd.close()
-                    throw IOException("Could not make the VPN interface blocking (result=$result)")
+                    val detail = if (result == LegacyPlatformNative.UNAVAILABLE) {
+                        "legacy native compatibility library is unavailable"
+                    } else {
+                        "native result=$result"
+                    }
+                    throw IOException("Could not make the VPN interface blocking ($detail)")
                 }
             }
             tun = tunFd

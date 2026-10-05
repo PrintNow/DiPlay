@@ -80,7 +80,7 @@ connecting to a local MFi chip for authentication.
 - Android SDK Platform 37.
 - Android 9 (API 28) or newer.
   On Android 9, Wi-Fi P2P 5 GHz mode is unavailable and LocalOnlyHotspot is used instead.
-- Android NDK `28.2.13676358`.
+- Android NDK `25.2.9519653` (the final NDK release supporting Android 4.4/API 19).
 - A physical USB Host/OTG Android device and MFi hardware are required for
   hardware validation.
 

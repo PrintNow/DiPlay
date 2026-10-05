@@ -16,6 +16,7 @@ import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.orchestration.*
 import com.shilapi.xcertplay.transport.Iap2IdentificationConfig
 import java.util.concurrent.ExecutorService
+import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.After
 import org.junit.Assert.*
@@ -64,6 +65,7 @@ class CarPlayHostSettingsTest {
         (field("teardownExecutor") as ExecutorService).shutdownNow()
         (field("airPlayCommandExecutor") as ExecutorService).shutdownNow()
         CarPlayBackgroundSession.clear()
+        File(activity.noBackupFilesDir, "offline-mfi").deleteRecursively()
         controllers.close()
     }
 
@@ -253,6 +255,10 @@ class CarPlayHostSettingsTest {
     }
 
     @Test fun selectingLocalWithoutIdentityKeepsTheMenuAndSavedUsbChoice() {
+        File(activity.noBackupFilesDir, "offline-mfi").apply {
+            deleteRecursively()
+            assertTrue(mkdirs()) // Existing but incomplete: bundled assets must not mask the missing identity.
+        }
         attachController()
         invoke("openSettingsMenu")
         views(menu()).filterIsInstance<RadioButton>().first { it.tag == MfiTarget.LOCAL }.performClick()
@@ -262,6 +268,7 @@ class CarPlayHostSettingsTest {
         assertEquals(View.VISIBLE, (field("mfiErrorView") as View).visibility)
         assertEquals(0, field("restartGeneration"))
     }
+
 
     @Test fun switchingToUsbPersistsAndPassesUsbToTheRuntime() {
         AirPlayPersistence.saveMfiTarget(activity, MfiTarget.LOCAL)

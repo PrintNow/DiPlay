@@ -12,14 +12,14 @@ import java.io.Closeable
 internal class OpusEncoder(bitrate: Int) : Closeable {
     private val codec: MediaCodec? = try {
         val format = MediaFormat.createAudioFormat(
-            MediaFormat.MIMETYPE_AUDIO_OPUS,
+            OPUS_MIME_TYPE,
             SAMPLE_RATE,
             CHANNELS,
         ).apply {
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, MAX_INPUT_BYTES)
         }
-        MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_OPUS).also {
+        MediaCodec.createEncoderByType(OPUS_MIME_TYPE).also {
             it.configure(
                 format,
                 null,
@@ -131,6 +131,8 @@ internal class OpusEncoder(bitrate: Int) : Closeable {
 
     private companion object {
         const val TAG = "xcertplay-usb"
+        // Stable MIME literal; the framework field was added in API 21.
+        const val OPUS_MIME_TYPE = "audio/opus"
         const val SAMPLE_RATE = 48_000
         const val CHANNELS = 1
         const val INPUT_TIMEOUT_US = 10_000L

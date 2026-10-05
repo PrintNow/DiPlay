@@ -15,6 +15,13 @@ import java.util.concurrent.TimeUnit
 /** Uses the owner's standard Android Usage Access grant, never the privileged BYD API. */
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP_MR1) // Usage Access
 internal class DiLink51ClusterMonitor(context: Context, private val onState: (ClusterActivityState.Snapshot) -> Unit) {
+    private companion object {
+        // UsageEvents added these event codes in API 29; comparing their stable numeric
+        // values is safe on older releases and avoids resolving the newer fields.
+        const val DEVICE_SHUTDOWN_EVENT = 26
+        const val DEVICE_STARTUP_EVENT = 27
+    }
+
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadScheduledExecutor()
@@ -58,7 +65,7 @@ internal class DiLink51ClusterMonitor(context: Context, private val onState: (Cl
                 val event = UsageEvents.Event()
                 while (events.hasNextEvent()) {
                     events.getNextEvent(event)
-                    val reset = event.eventType == UsageEvents.Event.DEVICE_SHUTDOWN || event.eventType == UsageEvents.Event.DEVICE_STARTUP
+                    val reset = event.eventType == DEVICE_SHUTDOWN_EVENT || event.eventType == DEVICE_STARTUP_EVENT
                     if (!reset && !ClusterActivityState.accepted(event.packageName, event.className)) continue
                     val instance = runCatching { instanceIdMethod?.invoke(event) as? Int }.getOrNull() ?: 0
                     val key = EventKey(event.packageName, event.className, instance, event.eventType, event.timeStamp)

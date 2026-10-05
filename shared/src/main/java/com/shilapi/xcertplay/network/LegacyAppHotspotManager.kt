@@ -27,6 +27,7 @@ class LegacyAppHotspotManager(
     private val wifiManager = ContextCompat.getSystemService(appContext, WifiManager::class.java)
         ?: throw IllegalStateException("WifiManager is unavailable")
     private val session = LegacySoftApSession(ReflectiveSoftAp(wifiManager))
+    private val lifecycleLock = Any()
 
     @Volatile
     private var closed = false
@@ -38,10 +39,13 @@ class LegacyAppHotspotManager(
         require(timeoutMillis > 0) { "timeoutMillis must be positive" }
         val deadline = System.currentTimeMillis() + timeoutMillis
         val credentials = AppHotspotCredentials.load(appContext)
-        try {
-            session.enable(credentials.toWifiConfiguration(), deadline)
-        } catch (failure: SecurityException) {
-            throw IOException("This Android version does not let DiPlay start the hotspot; use the car hotspot instead", failure)
+        synchronized(lifecycleLock) {
+            check(!closed) { "LegacyAppHotspotManager is closed" }
+            try {
+                session.enable(credentials.toWifiConfiguration(), deadline)
+            } catch (failure: SecurityException) {
+                throw IOException("This Android version does not let DiPlay start the hotspot; use the car hotspot instead", failure)
+            }
         }
 
         var localInterface: LocalHotspotInterface? = null
@@ -61,7 +65,7 @@ class LegacyAppHotspotManager(
             "DiPlay hotspot iface=${localInterface.name} channelKnown=${channel > 0} " +
                 "hardwareAddressKnown=${localInterface.hardwareAddress != null}",
         )
-        return WirelessHotspotInfo(
+        val info = WirelessHotspotInfo(
             ssid = credentials.ssid,
             passphrase = credentials.passphrase,
             security = Iap2WirelessSecurity.WPA_WPA2,
@@ -77,11 +81,19 @@ class LegacyAppHotspotManager(
             },
             backend = WirelessHotspotBackend.APP_HOTSPOT,
         )
+        return synchronized(lifecycleLock) {
+            check(!closed) { "LegacyAppHotspotManager is closed" }
+            info
+        }
     }
 
     override fun close() {
-        closed = true
-        session.restore()
+        synchronized(lifecycleLock) {
+            closed = true
+            if (!session.restore()) {
+                onDiagnostic("Could not fully restore the owner's Wi-Fi/hotspot state; close will retry")
+            }
+        }
     }
 
     /** The driver channel, once it has stopped changing; unknown is reported as iAP2 "auto". */

@@ -5,8 +5,11 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -76,18 +79,10 @@ internal class HomeScreenMonitor(context: Context, private val onChange: (Boolea
 
     private fun poll() {
         val now = System.currentTimeMillis()
-        val events = runCatching { context.getSystemService(UsageStatsManager::class.java).queryEvents(since, now) }
-            .getOrNull() ?: return
-        val event = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            // MOVE_TO_FOREGROUND is ACTIVITY_RESUMED (API 29) under its older name.
-            @Suppress("DEPRECATION")
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND && event.timeStamp >= newestTime) {
-                val pkg = event.packageName
-                newestTime = event.timeStamp
-                newestPackage = pkg
-            }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
+        UsageEventsApi21.newest(context, since, now, newestTime)?.let { event ->
+            newestTime = event.time
+            newestPackage = event.packageName
         }
         // Overlap, because events can arrive a little late.
         since = (now - OVERLAP_MILLIS).coerceAtLeast(since)
@@ -134,7 +129,8 @@ internal class HomeScreenMonitor(context: Context, private val onChange: (Boolea
             runCatching {
                 val pm = context.packageManager
                 val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-                val list = pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PackageManager.MATCH_ALL else 0
+                val list = pm.queryIntentActivities(intent, flags)
                 for (info in list) {
                     val pkg = info.activityInfo?.packageName
                     if (!pkg.isNullOrEmpty() && pkg != "android" && pkg != context.packageName) {
@@ -152,5 +148,30 @@ internal class HomeScreenMonitor(context: Context, private val onChange: (Boolea
                 PackageManager.MATCH_DEFAULT_ONLY,
             )?.activityInfo?.packageName
         }.getOrNull()?.takeIf { it != "android" && it != context.packageName }
+    }
+
+    private data class ForegroundEvent(val packageName: String, val time: Long)
+
+    /** Keeps UsageStats framework types out of the class loaded on Android 4.4. */
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    private object UsageEventsApi21 {
+        fun newest(context: Context, since: Long, now: Long, previousTime: Long): ForegroundEvent? {
+            val events = runCatching {
+                ContextCompat.getSystemService(context, UsageStatsManager::class.java)?.queryEvents(since, now)
+            }.getOrNull() ?: return null
+            val event = UsageEvents.Event()
+            var newest: ForegroundEvent? = null
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                // MOVE_TO_FOREGROUND is ACTIVITY_RESUMED (API 29) under its older name.
+                @Suppress("DEPRECATION")
+                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND &&
+                    event.timeStamp >= (newest?.time ?: previousTime)
+                ) {
+                    newest = ForegroundEvent(event.packageName, event.timeStamp)
+                }
+            }
+            return newest
+        }
     }
 }

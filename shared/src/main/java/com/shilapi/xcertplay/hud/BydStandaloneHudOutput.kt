@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Process
 import android.util.Log
+import androidx.annotation.RequiresApi
 import java.security.MessageDigest
 
 /** Ordinary-app IPC to the real stock receiver. No shell, local socket or permission grant. */
@@ -48,16 +49,11 @@ internal class BydStandaloneHudOutput private constructor(context: Context) {
         fun diagnostics(context: Context): String = buildString {
             appendLine("standaloneHudAvailable=${available(context)} sdk=${Build.VERSION.SDK_INT}")
             appendLine("firmware=${Build.FINGERPRINT}")
-            runCatching {
-                val info = context.packageManager.getPackageInfo(TARGET.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-                val receiver = context.packageManager.getReceiverInfo(TARGET, 0)
-                appendLine("receiver=${TARGET.flattenToString()} version=${info.longVersionCode} system=${(info.applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) ?: 0) != 0}")
-                appendLine("receiverEnabled=${receiver.enabled} exported=${receiver.exported} permission=${receiver.permission}")
-                info.signingInfo?.apkContentsSigners?.forEach { signer ->
-                    appendLine("signerSha256=" + MessageDigest.getInstance("SHA-256").digest(signer.toByteArray())
-                        .joinToString("") { "%02x".format(it.toInt() and 255) })
-                }
-            }.onFailure { appendLine("receiverMetadataUnavailable=${it.javaClass.simpleName}") }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                Api28.appendDiagnostics(context, this)
+            } else {
+                appendLine("receiverMetadataUnavailable=requiresApi28")
+            }
         }
 
         /** Enable production and diagnostic packages only on the physically tested firmware. */
@@ -66,18 +62,49 @@ internal class BydStandaloneHudOutput private constructor(context: Context) {
                     "com.andrerinas.headunitrevived", "com.shihab.diplay",
                     "com.andrerinas.headunitrevived.bydhudtest", "com.shihab.diplay.hudtest")) return false
             if (Build.FINGERPRINT != "BYD-AUTO/IVI/IVI:13/TP1A.220624.014/eng.build20260722.221155:user/release-keys") return false
-            return runCatching {
-                val manager = context.packageManager
-                val info = manager.getPackageInfo(TARGET.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-                val receiver = manager.getReceiverInfo(TARGET, 0)
-                val signers = info.signingInfo?.apkContentsSigners ?: return false
-                info.longVersionCode == 10601004L &&
-                    info.applicationInfo!!.flags and ApplicationInfo.FLAG_SYSTEM != 0 &&
-                    receiver.enabled && receiver.exported && receiver.permission.isNullOrEmpty() &&
-                    signers.size == 1 && MessageDigest.getInstance("SHA-256").digest(signers[0].toByteArray())
-                        .joinToString("") { "%02x".format(it.toInt() and 255) } ==
-                        "efe3ca8ada0d10c655c3df9910ad2ebc121a47d9a6358434eb24074309933efc"
-            }.getOrDefault(false)
+            return Api28.available(context)
+        }
+
+        /** Keeps API 28 signing types out of code paths verified on Android 4.4. */
+        @RequiresApi(Build.VERSION_CODES.P)
+        private object Api28 {
+            fun appendDiagnostics(context: Context, output: StringBuilder) {
+                runCatching {
+                    val info = context.packageManager.getPackageInfo(
+                        TARGET.packageName,
+                        PackageManager.GET_SIGNING_CERTIFICATES,
+                    )
+                    val receiver = context.packageManager.getReceiverInfo(TARGET, 0)
+                    output.appendLine(
+                        "receiver=${TARGET.flattenToString()} version=${info.longVersionCode} " +
+                            "system=${(info.applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) ?: 0) != 0}",
+                    )
+                    output.appendLine(
+                        "receiverEnabled=${receiver.enabled} exported=${receiver.exported} permission=${receiver.permission}",
+                    )
+                    info.signingInfo?.apkContentsSigners?.forEach { signer ->
+                        output.appendLine("signerSha256=${sha256(signer.toByteArray())}")
+                    }
+                }.onFailure { output.appendLine("receiverMetadataUnavailable=${it.javaClass.simpleName}") }
+            }
+
+            fun available(context: Context): Boolean {
+                return runCatching {
+                    val manager = context.packageManager
+                    val info = manager.getPackageInfo(TARGET.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                    val receiver = manager.getReceiverInfo(TARGET, 0)
+                    val signers = info.signingInfo?.apkContentsSigners ?: return false
+                    info.longVersionCode == 10601004L &&
+                        info.applicationInfo!!.flags and ApplicationInfo.FLAG_SYSTEM != 0 &&
+                        receiver.enabled && receiver.exported && receiver.permission.isNullOrEmpty() &&
+                        signers.size == 1 && sha256(signers[0].toByteArray()) ==
+                            "efe3ca8ada0d10c655c3df9910ad2ebc121a47d9a6358434eb24074309933efc"
+                }.getOrDefault(false)
+            }
+
+            private fun sha256(value: ByteArray): String =
+                MessageDigest.getInstance("SHA-256").digest(value)
+                    .joinToString("") { "%02x".format(it.toInt() and 255) }
         }
     }
 }

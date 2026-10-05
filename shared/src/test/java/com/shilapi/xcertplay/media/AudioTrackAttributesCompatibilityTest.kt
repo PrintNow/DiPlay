@@ -3,6 +3,7 @@ package com.shilapi.xcertplay.media
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.media.AudioManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -13,13 +14,20 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class AudioTrackAttributesCompatibilityTest {
+    @Test fun legacyFocusUsesMappedOrExplicitStreamWhileModernFocusUsesAttributes() {
+        assertEquals(AudioManager.STREAM_VOICE_CALL, focusLegacyStreamType(19, 0, AudioManager.STREAM_VOICE_CALL))
+        assertEquals(8, focusLegacyStreamType(25, 8, AudioManager.STREAM_MUSIC))
+        assertEquals(-1, focusLegacyStreamType(26, 0, AudioManager.STREAM_VOICE_CALL))
+        assertEquals(8, focusLegacyStreamType(26, 8, AudioManager.STREAM_MUSIC))
+    }
+
     @Test
     @Config(sdk = [28])
     fun android9UsesTheConfiguredAttributesWithoutCallingTheNewGetter() {
         val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
         val track = buildTrack(attributes)
         try {
-            assertSame(attributes, audioTrackAttributesForFocus(track, attributes))
+            assertSame(attributes, Api21AudioTrackCompat.attributesForFocus(track, attributes))
         } finally {
             track.release()
         }
@@ -32,7 +40,7 @@ class AudioTrackAttributesCompatibilityTest {
         val track = buildTrack(attributes)
         try {
             val different = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE).build()
-            assertEquals(attributes, audioTrackAttributesForFocus(track, different))
+            assertEquals(attributes, Api21AudioTrackCompat.attributesForFocus(track, different))
         } finally {
             track.release()
         }

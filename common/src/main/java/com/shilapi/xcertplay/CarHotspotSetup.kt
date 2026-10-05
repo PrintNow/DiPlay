@@ -1,9 +1,13 @@
 package com.shilapi.xcertplay
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.adb.AdbKeys
 import com.shilapi.xcertplay.adb.LocalAdb
 import com.shilapi.xcertplay.hud.BydOutputSettings
@@ -20,9 +24,19 @@ internal object CarHotspotSetup {
     enum class Permission(val appOp: String) {
         HOTSPOT("WRITE_SETTINGS"), BOOT_LAUNCH("SYSTEM_ALERT_WINDOW");
 
-        fun granted(context: Context): Boolean = when (this) {
-            HOTSPOT -> Settings.System.canWrite(context)
-            BOOT_LAUNCH -> Settings.canDrawOverlays(context)
+        fun granted(context: Context): Boolean {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                return when (this) {
+                    HOTSPOT -> Settings.System.canWrite(context)
+                    BOOT_LAUNCH -> Settings.canDrawOverlays(context)
+                }
+            }
+            // Before API 23 these special accesses were ordinary manifest permissions.
+            val permission = when (this) {
+                HOTSPOT -> Manifest.permission.WRITE_SETTINGS
+                BOOT_LAUNCH -> Manifest.permission.SYSTEM_ALERT_WINDOW
+            }
+            return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
         }
     }
 

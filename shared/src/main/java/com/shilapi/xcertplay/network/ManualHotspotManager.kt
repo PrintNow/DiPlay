@@ -2,12 +2,12 @@ package com.shilapi.xcertplay.network
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.net.wifi.SoftApConfiguration
 import android.net.wifi.WifiConfiguration
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Looper
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.orchestration.ManualHotspotBand
 import com.shilapi.xcertplay.orchestration.ManualHotspotSecurity
 import com.shilapi.xcertplay.transport.Iap2WirelessSecurity
@@ -38,7 +38,7 @@ class ManualHotspotManager(
     private val waitLock = Object()
     private var confirmed: HotspotSelection? = null
     private var lastSampleLog = emptyList<String>()
-    private val wifiManager = appContext.getSystemService(WifiManager::class.java)
+    private val wifiManager = ContextCompat.getSystemService(appContext, WifiManager::class.java)
         ?: throw IllegalStateException("WifiManager is unavailable")
     private val expectedSsid = ssid
     private val passphrase = passphrase
@@ -215,6 +215,7 @@ class ManualHotspotManager(
     }
 
     private fun frequencyFromConnectionInfo(): Int? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null
         val connectionInfo = try {
             wifiManager.connectionInfo
         } catch (_: SecurityException) {
@@ -247,21 +248,22 @@ class ManualHotspotManager(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         return try {
             val method = WifiManager::class.java.getMethod("getSoftApConfiguration")
-            val configuration = method.invoke(wifiManager) as? SoftApConfiguration
-                ?: return null
-            val ssid = configuration.ssid ?: return null
+            val configuration = method.invoke(wifiManager) ?: return null
+            val configurationClass = configuration.javaClass
+            val ssid = configurationClass.getMethod("getSsid").invoke(configuration) as? String ?: return null
             val bandAndChannel = when {
                 Build.VERSION.SDK_INT >= 36 -> {
-                    val channels = configuration.channels
+                    val channels = configurationClass.getMethod("getChannels").invoke(configuration)
+                        as? android.util.SparseIntArray ?: return null
                     if (channels.size() == 0) null else channels.keyAt(0) to channels.valueAt(0)
                 }
                 else -> {
                     val band = (
-                        SoftApConfiguration::class.java
+                        configurationClass
                             .getMethod("getBand")
                             .invoke(configuration) as? Number
                         )?.toInt()
-                    val channel = SoftApConfiguration::class.java
+                    val channel = configurationClass
                         .getMethod("getChannel")
                         .invoke(configuration) as? Number
                     if (band == null || channel == null) null else band to channel.toInt()
@@ -274,7 +276,9 @@ class ManualHotspotManager(
                 band = band,
                 channel = channel,
                 frequencyMHz = wifiChannelToFrequencyMhz(channel, band),
-                security = mapSoftApSecurity(configuration.securityType),
+                security = mapSoftApSecurity(
+                    (configurationClass.getMethod("getSecurityType").invoke(configuration) as Number).toInt(),
+                ),
             )
         } catch (_: Throwable) {
             null
@@ -311,11 +315,11 @@ class ManualHotspotManager(
     }
 
     private fun mapSoftApSecurity(securityType: Int): Iap2WirelessSecurity = when (securityType) {
-        SoftApConfiguration.SECURITY_TYPE_OPEN -> Iap2WirelessSecurity.NONE
-        SoftApConfiguration.SECURITY_TYPE_WPA2_PSK -> Iap2WirelessSecurity.WPA_WPA2
-        SoftApConfiguration.SECURITY_TYPE_WPA3_SAE_TRANSITION ->
+        0 -> Iap2WirelessSecurity.NONE
+        1 -> Iap2WirelessSecurity.WPA_WPA2
+        2 ->
             Iap2WirelessSecurity.WPA3_TRANSITION
-        SoftApConfiguration.SECURITY_TYPE_WPA3_SAE -> Iap2WirelessSecurity.WPA3_ONLY
+        3 -> Iap2WirelessSecurity.WPA3_ONLY
         else -> Iap2WirelessSecurity.WPA_WPA2
     }
 
@@ -324,8 +328,8 @@ class ManualHotspotManager(
     ): Iap2WirelessSecurity {
         val keyManagement = configuration.allowedKeyManagement ?: return Iap2WirelessSecurity.NONE
         val open = keyManagement.get(WifiConfiguration.KeyMgmt.NONE)
-        val wpa2 = keyManagement.get(WifiConfiguration.KeyMgmt.WPA2_PSK)
-        val sae = keyManagement.get(WifiConfiguration.KeyMgmt.SAE)
+        val wpa2 = keyManagement.get(4)
+        val sae = keyManagement.get(8)
         return when {
             open && !wpa2 && !sae -> Iap2WirelessSecurity.NONE
             wpa2 && sae -> Iap2WirelessSecurity.WPA3_TRANSITION

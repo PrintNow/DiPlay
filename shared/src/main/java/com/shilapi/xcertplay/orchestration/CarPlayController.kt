@@ -21,6 +21,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.airplay.AirPlayListenerIdentity
 import com.shilapi.xcertplay.airplay.AirPlayTcpAccepted
 import com.shilapi.xcertplay.airplay.AirPlayConfig
@@ -178,9 +179,11 @@ class CarPlayController(
     private val appContext = context.applicationContext
     private val diagnosticAttempt = diagnosticAttempts.incrementAndGet()
     private val diagnosticRun = AtomicInteger()
-    private val usbManager = context.getSystemService(UsbManager::class.java)
+    private val usbManager = checkNotNull(
+        ContextCompat.getSystemService(appContext, UsbManager::class.java),
+    ) { "UsbManager is unavailable" }
     private val bluetoothAdapter =
-        appContext.getSystemService(BluetoothManager::class.java)?.adapter
+        ContextCompat.getSystemService(appContext, BluetoothManager::class.java)?.adapter
     private val iphoneHost = IphoneUsbHost(
         appContext,
         usbManager,
@@ -248,7 +251,11 @@ class CarPlayController(
     @Volatile private var firstTcpWatchdog: FirstTcpWatchdog? = null
     private val startupTimer = java.util.concurrent.ScheduledThreadPoolExecutor(1) { task ->
         Thread(task, "diplay-first-tcp-timeout").apply { isDaemon = true }
-    }.apply { removeOnCancelPolicy = true }
+    }.apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            removeOnCancelPolicy = true
+        }
+    }
     @Volatile private var wirelessDiagnostics: WirelessStartupDiagnostics? = null
     @Volatile private var bluetoothSocket: BluetoothSocket? = null
     @Volatile private var bluetoothStream: BluetoothRfcommDuplexStream? = null
@@ -719,7 +726,12 @@ class CarPlayController(
         availabilityPollGeneration.incrementAndGet()
         phase = Phase.MFI
         onStatus(CarPlayStatus.DiscoveringMfi)
-        val offlineDirectory = java.io.File(appContext.noBackupFilesDir, LocalMfiAuthenticationClient.DIRECTORY)
+        val privateFilesDirectory = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            appContext.noBackupFilesDir
+        } else {
+            appContext.filesDir
+        }
+        val offlineDirectory = java.io.File(privateFilesDirectory, LocalMfiAuthenticationClient.DIRECTORY)
         when (config.mfiTarget) {
             MfiTarget.LOCAL -> openLocalMfi(offlineDirectory)
             MfiTarget.USB_CH341 -> {
@@ -1170,11 +1182,12 @@ class CarPlayController(
 
             val adapter = bluetoothAdapter
                 ?: throw IOException("Bluetooth adapter is unavailable")
+            requireBluetoothConnectPermission()
             if (!adapter.isEnabled) throw IOException("Bluetooth is not enabled")
             val device = selectWirelessBluetoothDevice(adapter)
             val hostBluetoothMac = accessoryBluetoothMac(adapter)
             debugLog(
-                "wireless selected Bluetooth target name=${device.name ?: "unknown"} " +
+                "wireless selected Bluetooth target name=${bluetoothDeviceName(device) ?: "unknown"} " +
                     "address=${device.address} localBt=$hostBluetoothMac",
             )
             val wirelessAirPlayConfig = airPlayConfig.copy(
@@ -2057,13 +2070,28 @@ class CarPlayController(
                 "The car hotspot is off. Turn it on in the car settings and connect again.")
         }
         val manager: WirelessHotspotManager = when (hotspotMode) {
-            WirelessHotspotMode.WIFI_P2P -> WifiP2pGroupManager(appContext, ::debugLog,
-                preferredChannel = config.wifiP2pPreferredChannel)
-            WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> LocalOnlyHotspotManager(appContext, ::debugLog)
-            WirelessHotspotMode.EXISTING_WIFI -> ExistingWifiManager(
-                appContext, config.existingWifiSsid, config.existingWifiPassphrase, ::debugLog,
-                onNetworkChanged = { if (!isStaleWirelessRun(generation)) restartWireless() },
-            )
+            WirelessHotspotMode.WIFI_P2P -> {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    throw IOException("Wi-Fi Direct hotspot requires Android 10 or newer")
+                }
+                WifiP2pGroupManager(appContext, ::debugLog,
+                    preferredChannel = config.wifiP2pPreferredChannel)
+            }
+            WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                    throw IOException("Local-only hotspot requires Android 8.0 or newer")
+                }
+                LocalOnlyHotspotManager(appContext, ::debugLog)
+            }
+            WirelessHotspotMode.EXISTING_WIFI -> {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+                    throw IOException("Existing Wi-Fi requires Android 5.0 or newer")
+                }
+                ExistingWifiManager(
+                    appContext, config.existingWifiSsid, config.existingWifiPassphrase, ::debugLog,
+                    onNetworkChanged = { if (!isStaleWirelessRun(generation)) restartWireless() },
+                )
+            }
             WirelessHotspotMode.APP_HOTSPOT -> LegacyAppHotspotManager(appContext, ::debugLog)
             WirelessHotspotMode.MANUAL -> ManualHotspotManager(
                 context = appContext,
@@ -2115,13 +2143,14 @@ class CarPlayController(
     }
 
     private fun selectWirelessBluetoothDevice(adapter: BluetoothAdapter): BluetoothDevice {
-        val bonded = adapter.bondedDevices.orEmpty()
+        requireBluetoothConnectPermission()
+        val bonded = bluetoothBondedDevices(adapter)
         config.wirelessBluetoothDeviceAddress?.let { selected ->
             return bonded.firstOrNull { it.address.equals(selected, ignoreCase = true) }
                 ?: throw IOException("The selected iPhone is no longer paired. Choose it again in DiPlay.")
         }
         val iPhones = bonded.filter { device ->
-            device.name?.contains("iPhone", ignoreCase = true) == true
+            bluetoothDeviceName(device)?.contains("iPhone", ignoreCase = true) == true
         }
         val directlyConnectedIPhones = iPhones.filter(::isBluetoothDeviceConnected)
         Log.i(
@@ -2141,7 +2170,7 @@ class CarPlayController(
         if (connectedIPhones.size > 1) {
             throw IOException(
                 "Multiple connected iPhones found: " +
-                    connectedIPhones.joinToString { "${it.name ?: "iPhone"} (${it.address})" },
+                    connectedIPhones.joinToString { "${bluetoothDeviceName(it) ?: "iPhone"} (${it.address})" },
             )
         }
         if (iPhones.size == 1) return iPhones.single()
@@ -2284,8 +2313,13 @@ class CarPlayController(
                 } catch (error: SecurityException) {
                     Log.w(IphoneCarPlayConfiguration.TAG, "Could not read connected Bluetooth devices", error)
                 } finally {
-                    adapter.closeProfileProxy(profileId, proxy)
-                    latch.countDown()
+                    try {
+                        adapter.closeProfileProxy(profileId, proxy)
+                    } catch (error: SecurityException) {
+                        Log.w(IphoneCarPlayConfiguration.TAG, "Could not close Bluetooth profile proxy", error)
+                    } finally {
+                        latch.countDown()
+                    }
                 }
             }
 
@@ -2293,7 +2327,13 @@ class CarPlayController(
                 latch.countDown()
             }
         }
-        if (!adapter.getProfileProxy(appContext, listener, profile)) return emptySet()
+        val requested = try {
+            adapter.getProfileProxy(appContext, listener, profile)
+        } catch (error: SecurityException) {
+            Log.w(IphoneCarPlayConfiguration.TAG, "Bluetooth connect permission unavailable", error)
+            false
+        }
+        if (!requested) return emptySet()
         if (!latch.await(3, TimeUnit.SECONDS)) {
             Log.w(IphoneCarPlayConfiguration.TAG, "Timed out reading Bluetooth profile $profile")
         }
@@ -2302,11 +2342,9 @@ class CarPlayController(
 
     @Suppress("DEPRECATION")
     private fun accessoryBluetoothMac(adapter: BluetoothAdapter): String {
-        val address = try {
-            adapter.address
-        } catch (_: SecurityException) {
-            null
-        }
+        // Since API 23 the real address requires privileged LOCAL_MAC_ADDRESS. The fallback identity
+        // is deliberately used instead of invoking an API a normal install cannot access.
+        val address = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) legacyBluetoothAddress(adapter) else null
         val settingsAddress = try {
             Settings.Secure.getString(appContext.contentResolver, "bluetooth_address")
         } catch (_: SecurityException) {
@@ -2318,6 +2356,52 @@ class CarPlayController(
                     !it.equals(ADAPTER_ADDRESS_PLACEHOLDER, ignoreCase = true)
             }
             ?: airPlayConfig.btMac
+    }
+
+    private fun requireBluetoothConnectPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            throw IOException("Nearby devices permission is required for wireless CarPlay")
+        }
+    }
+
+    private fun bluetoothBondedDevices(adapter: BluetoothAdapter): Set<BluetoothDevice> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return emptySet()
+        }
+        return try {
+            adapter.bondedDevices.orEmpty()
+        } catch (error: SecurityException) {
+            Log.w(IphoneCarPlayConfiguration.TAG, "Could not read bonded Bluetooth devices", error)
+            emptySet()
+        }
+    }
+
+    private fun bluetoothDeviceName(device: BluetoothDevice): String? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return null
+        }
+        return try {
+            device.name
+        } catch (error: SecurityException) {
+            Log.w(IphoneCarPlayConfiguration.TAG, "Could not read Bluetooth device name", error)
+            null
+        }
+    }
+
+    @Suppress("DEPRECATION", "MissingPermission") // Pre-M BLUETOOTH is install-time and declared in the manifest.
+    private fun legacyBluetoothAddress(adapter: BluetoothAdapter): String? = try {
+        adapter.address
+    } catch (_: SecurityException) {
+        null
     }
 
     private fun hostAddressText(address: InetAddress): String {

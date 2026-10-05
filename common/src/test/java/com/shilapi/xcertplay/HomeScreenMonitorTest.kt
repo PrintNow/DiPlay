@@ -89,6 +89,7 @@ class HomeScreenMonitorTest {
         monitor.stop()
         assertFalse(monitor.running)
     }
+
     @Test fun stoppedMonitorReleasesForegroundListener() {
         val monitor = HomeScreenMonitor(context) {}
         monitor.start()

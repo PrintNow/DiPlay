@@ -1,18 +1,24 @@
 package com.shilapi.xcertplay
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.AssetManager
 import android.os.Looper
 import com.shilapi.xcertplay.airplay.*
 import com.shilapi.xcertplay.orchestration.*
 import com.shilapi.xcertplay.transport.Iap2IdentificationConfig
 import com.shilapi.xcertplay.transport.UsbDeviceId
 import java.io.File
+import java.io.FileNotFoundException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
@@ -36,8 +42,9 @@ class DiPlayAuthenticationTest {
     }
 
     @Test fun freshInstallStillDefaultsToLocalAuthentication() {
-        assertEquals(MfiTarget.LOCAL, AirPlayPersistence.loadMfiTarget(context))
-        assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(context, MfiTarget.LOCAL) }
+        val identityFreeContext = identityFreeContext()
+        assertEquals(MfiTarget.LOCAL, AirPlayPersistence.loadMfiTarget(identityFreeContext))
+        assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(identityFreeContext, MfiTarget.LOCAL) }
     }
 
     @Test fun savedUsbChoiceSurvivesBootstrapWithoutLocalAssets() {
@@ -59,7 +66,14 @@ class DiPlayAuthenticationTest {
 
     @Test fun switchingFromUsbToLocalStillRequiresLocalIdentity() {
         DiPlayBootstrap.ensure(context, MfiTarget.USB_CH341)
-        assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(context, MfiTarget.LOCAL) }
+        assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(identityFreeContext(), MfiTarget.LOCAL) }
+    }
+
+    private fun identityFreeContext(): Context = object : ContextWrapper(context) {
+        private val emptyAssets = mock(AssetManager::class.java).also {
+            `when`(it.open(anyString())).thenThrow(FileNotFoundException("identity-free test assets"))
+        }
+        override fun getAssets(): AssetManager = emptyAssets
     }
 
     @Test fun usbControllerWaitsForHardwareWithoutLocalAssets() {

@@ -1,9 +1,11 @@
 package com.shilapi.xcertplay.hud
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.iap2.wire.Iap2Frame
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -180,7 +182,7 @@ internal object BydClusterBridge {
     }
 
     private fun projectionDisplayPresent(appContext: Context): Boolean =
-        appContext.getSystemService(android.hardware.display.DisplayManager::class.java)
+        ContextCompat.getSystemService(appContext, android.hardware.display.DisplayManager::class.java)
             ?.displays?.any { it.name == DILINK3_DISPLAY } == true
 
     private const val DILINK3_DISPLAY = "fission_bg_xdjaVirtualSurface"
@@ -193,6 +195,7 @@ internal object BydClusterBridge {
     }
 
     // IS_BYD_MAP=true is required: the adapter drops foreign frames while it believes the stock map navigates.
+    @SuppressLint("WrongConstant") // BYD's stock adapter requires this hidden receiver flag.
     private fun baseIntent(keyType: Int) = Intent(AMAP_ACTION).apply {
         setPackage(adapter?.packageName ?: BydAmapAdapter.BYD.packageName)
         addFlags(FLAG_RECEIVER_INCLUDE_BACKGROUND)

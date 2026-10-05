@@ -22,12 +22,14 @@ object CarPlayMediaButton {
     /** BYD's steering-wheel voice key: a short press, and the code the wheel sends for a long press. */
     const val KEYCODE_BYD_AUTO_MEDIA_VOICE = 304
     const val KEYCODE_BYD_AUTO_MEDIA_VOICE_LONG = 312
+    // KeyEvent.KEYCODE_VOICE_ASSIST was added in API 21; key codes are stable wire values.
+    private const val KEYCODE_VOICE_ASSIST_COMPAT = 231
 
     /**
      * Whether [keyCode] is a voice key that opens Siri. The BYD wheel sends each press as an
      * instant down/up pair, so a long press arrives as its own key rather than as a held one.
      */
-    fun opensSiri(keyCode: Int): Boolean = keyCode == KeyEvent.KEYCODE_VOICE_ASSIST ||
+    fun opensSiri(keyCode: Int): Boolean = keyCode == KEYCODE_VOICE_ASSIST_COMPAT ||
         keyCode == KEYCODE_BYD_AUTO_MEDIA_VOICE || keyCode == KEYCODE_BYD_AUTO_MEDIA_VOICE_LONG
 
     /** The CarPlay press for [keyCode], or null when the key is not a media key CarPlay handles. */

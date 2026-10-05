@@ -44,6 +44,7 @@ class CarPlayBonjourDualStackTest {
     private fun setup() {
         `when`(context.applicationContext).thenReturn(context)
         `when`(context.getSystemService(Context.NSD_SERVICE)).thenReturn(mock(NsdManager::class.java))
+        `when`(context.getSystemService(Context.WIFI_SERVICE)).thenReturn(wifi)
         `when`(context.getSystemService(WifiManager::class.java)).thenReturn(wifi)
         `when`(wifi.createMulticastLock("carplay-bonjour")).thenReturn(lock)
         `when`(lock.isHeld).thenReturn(true)

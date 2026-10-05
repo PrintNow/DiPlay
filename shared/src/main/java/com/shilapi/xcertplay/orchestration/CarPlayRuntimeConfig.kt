@@ -29,12 +29,13 @@ enum class WirelessHotspotMode {
     ;
 
     fun supported(sdkInt: Int = Build.VERSION.SDK_INT): WirelessHotspotMode {
-        val fallback = if (sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE) APP_HOTSPOT else MANUAL
+        val fallback = fallback(sdkInt)
         return when (this) {
-            LOCAL_ONLY_HOTSPOT -> fallback
+            LOCAL_ONLY_HOTSPOT -> if (sdkInt >= Build.VERSION_CODES.O) this else fallback
             WIFI_P2P -> if (sdkInt >= Build.VERSION_CODES.Q) this else fallback
             APP_HOTSPOT -> fallback
-            EXISTING_WIFI, MANUAL -> this
+            EXISTING_WIFI -> if (sdkInt >= APP_HOTSPOT_MAX_SDK_EXCLUSIVE) this else fallback
+            MANUAL -> this
         }
     }
 
@@ -42,7 +43,18 @@ enum class WirelessHotspotMode {
         const val APP_HOTSPOT_MAX_SDK_EXCLUSIVE = Build.VERSION_CODES.M
 
         fun default(sdkInt: Int = Build.VERSION.SDK_INT): WirelessHotspotMode =
-            if (sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE) APP_HOTSPOT else MANUAL
+            when {
+                sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE -> APP_HOTSPOT
+                sdkInt >= Build.VERSION_CODES.O ->
+                    if (sdkInt >= Build.VERSION_CODES.Q) WIFI_P2P else LOCAL_ONLY_HOTSPOT
+                else -> MANUAL
+            }
+
+        private fun fallback(sdkInt: Int): WirelessHotspotMode = when {
+            sdkInt < APP_HOTSPOT_MAX_SDK_EXCLUSIVE -> APP_HOTSPOT
+            sdkInt >= Build.VERSION_CODES.O -> LOCAL_ONLY_HOTSPOT
+            else -> MANUAL
+        }
     }
 }
 

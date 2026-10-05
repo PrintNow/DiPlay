@@ -10,6 +10,8 @@ import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Looper
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import com.shilapi.xcertplay.orchestration.ManualHotspotValidation
 import com.shilapi.xcertplay.transport.Iap2WirelessSecurity
 import java.io.IOException
@@ -18,6 +20,7 @@ import java.net.NetworkInterface
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Attaches to an existing station network. Never creates an AP, joins Wi-Fi or changes routing. */
+@RequiresApi(Build.VERSION_CODES.LOLLIPOP)
 class ExistingWifiManager(
     context: Context,
     private val ssid: String,
@@ -25,9 +28,9 @@ class ExistingWifiManager(
     private val onDiagnostic: (String) -> Unit = {},
     private val onNetworkChanged: () -> Unit = {},
 ) : WirelessHotspotManager {
-    private val connectivity = context.applicationContext.getSystemService(ConnectivityManager::class.java)
+    private val connectivity = ContextCompat.getSystemService(context.applicationContext, ConnectivityManager::class.java)
         ?: throw IllegalStateException("ConnectivityManager is unavailable")
-    private val wifi = context.applicationContext.getSystemService(WifiManager::class.java)
+    private val wifi = ContextCompat.getSystemService(context.applicationContext, WifiManager::class.java)
         ?: throw IllegalStateException("WifiManager is unavailable")
     private val lock = Any()
     private val invalidated = AtomicBoolean()
@@ -115,7 +118,9 @@ class ExistingWifiManager(
                     hosts = addresses
                     interfaceIndex = iface.index
                     interfaceName = name
-                    connectivity.registerNetworkCallback(NetworkRequest.Builder().clearCapabilities()
+                    val request = NetworkRequest.Builder()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) request.clearCapabilities()
+                    connectivity.registerNetworkCallback(request
                         .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                         .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).build(), callback)
                     callbackRegistered = true
@@ -153,7 +158,7 @@ class ExistingWifiManager(
         if (passphrase.isEmpty()) Iap2WirelessSecurity.NONE else Iap2WirelessSecurity.WPA_WPA2
 
     private fun readableSsid(info: WifiInfo?): String? = info?.ssid?.removeSurrounding("\"")
-        ?.takeUnless { it == WifiManager.UNKNOWN_SSID || it.isEmpty() }
+        ?.takeUnless { it == "<unknown ssid>" || it.isEmpty() }
 
     private fun accessPointAddress(text: String?): ByteArray? {
         if (text == null || !text.matches(Regex("(?i)[0-9a-f]{2}(:[0-9a-f]{2}){5}"))) return null

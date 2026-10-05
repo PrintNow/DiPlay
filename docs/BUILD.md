@@ -1,11 +1,13 @@
 # Building DiPlay
 
-Requirements: JDK 25, Android SDK 37, NDK 28.2.13676358 and the included Gradle wrapper.
+Requirements: JDK 25, Android SDK 37, NDK 25.2.9519653 and the included Gradle wrapper.
 
-`mobile`, `common` and `shared` target Android 4.4 (minSdk 19). NDK 28 supports API 21 and up,
-so the JNI libraries are built for API 21 (`android.ndk.suppressMinSdkVersionError`) using only
-symbols Android 4.4 also has. The APK uses legacy multidex, and bundles Conscrypt 2.5.3 for TLS 1.2
-on Android 4.4; unit tests run Robolectric with `robolectric.conscryptMode=OFF`.
+`mobile`, `common` and `shared` target Android 4.4 (minSdk 19). NDK r25 is the last NDK release
+that supports API 19, so the 32-bit ARM JNI libraries are built with `APP_PLATFORM=android-19`.
+The 64-bit ABIs have a platform minimum of API 21 by definition. Do not upgrade the NDK without
+dropping KitKat support or supplying separately built API 19 libraries. The APK uses legacy
+multidex, and bundles Conscrypt 2.5.3 for TLS 1.2 on Android 4.4; unit tests run Robolectric with
+`robolectric.conscryptMode=OFF`.
 
 ## Source and CI builds
 

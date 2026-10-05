@@ -1,7 +1,6 @@
 package com.shilapi.xcertplay
 
 import android.Manifest
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
@@ -26,7 +25,7 @@ class DiPlaySessionService : Service() {
             return START_NOT_STICKY
         }
         NotificationManagerCompat.from(this).createNotificationChannel(
-            NotificationChannelCompat.Builder(CHANNEL, NotificationManager.IMPORTANCE_LOW).setName("CarPlay connection").build(),
+            NotificationChannelCompat.Builder(CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW).setName("CarPlay connection").build(),
         )
         val open = PendingIntentCompat.getActivity(this, 0, Intent(this, CarPlayHostActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT, false)
         val stop = PendingIntentCompat.getService(this, 1, Intent(this, DiPlaySessionService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_UPDATE_CURRENT, false)

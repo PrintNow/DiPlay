@@ -1,5 +1,12 @@
 package com.shilapi.xcertplay.airplay
 
+import android.os.Build
+
+internal object AirPlayCodecCapabilities {
+    fun opusOutput(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.LOLLIPOP
+    fun opusInput(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.Q
+}
+
 /** Display insets in pixels, used for CarPlay viewArea and safeArea declarations. */
 data class AirPlayInsets(
     val top: Int = 0,
@@ -52,7 +59,7 @@ data class AirPlayConfig(
     /** iOS 27 video in car (see [VideoInCar]); video plays only while [VideoInCar.allowed]. */
     val videoInCar: Boolean = false,
     /** Offer Opus playback; Android has a MediaCodec Opus decoder from API 21. */
-    val opusOutput: Boolean = true,
+    val opusOutput: Boolean = AirPlayCodecCapabilities.opusOutput(Build.VERSION.SDK_INT),
     /** Offer Opus microphone input; the MediaCodec Opus encoder needs API 29. */
-    val opusInput: Boolean = true,
+    val opusInput: Boolean = AirPlayCodecCapabilities.opusInput(Build.VERSION.SDK_INT),
 )

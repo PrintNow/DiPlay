@@ -2,6 +2,7 @@ package com.shilapi.xcertplay
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -12,8 +13,8 @@ import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.hud.BydNavigationOutputs
 import com.shilapi.xcertplay.orchestration.CarPlayController
 import com.shilapi.xcertplay.orchestration.CarPlayVideoListener
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -46,7 +47,7 @@ internal object CarPlayVideo : CarPlayVideoListener {
     var playing = false
         private set
     var pendingSeekMillis: Int? = null
-    var activity: CarPlayVideoActivity? = null
+    var activity: CarPlayVideoPlayer? = null
 
     fun attach(context: Context, next: CarPlayController) {
         appContext = context.applicationContext
@@ -164,7 +165,19 @@ internal object CarPlayVideo : CarPlayVideoListener {
     /** What the iPhone answered to [resolveOnIphone]. */
     class LoadedUrl(val status: Int?, val data: ByteArray?, val location: String?)
 
-    private val pendingUrls = ConcurrentHashMap<Long, CompletableFuture<Map<*, *>>>()
+    private class PendingUrl {
+        private val ready = CountDownLatch(1)
+        @Volatile private var value: Map<*, *>? = null
+
+        fun complete(response: Map<*, *>) {
+            value = response
+            ready.countDown()
+        }
+
+        fun await(): Map<*, *>? = if (ready.await(URL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) value else null
+    }
+
+    private val pendingUrls = ConcurrentHashMap<Long, PendingUrl>()
     private val nextUrlRequest = AtomicLong(1)
 
     /**
@@ -175,7 +188,7 @@ internal object CarPlayVideo : CarPlayVideoListener {
     fun resolveOnIphone(url: String): LoadedUrl? {
         val stream = streamId ?: return null
         val id = nextUrlRequest.getAndIncrement()
-        val answer = CompletableFuture<Map<*, *>>()
+        val answer = PendingUrl()
         pendingUrls[id] = answer
         reply(stream, linkedMapOf(
             "type" to "unhandledURL",
@@ -189,7 +202,7 @@ internal object CarPlayVideo : CarPlayVideoListener {
         ))
         Log.i(TAG, "asked the iPhone to load a ${android.net.Uri.parse(url).scheme} URL request=$id")
         val response = try {
-            answer.get(URL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            answer.await()
         } catch (_: Exception) {
             Log.w(TAG, "no iPhone answer for request=$id")
             null
@@ -232,6 +245,11 @@ internal object CarPlayVideo : CarPlayVideoListener {
         when {
             url == null -> Log.w(TAG, "video player requested without a playable item")
             !VideoInCar.allowed -> Log.w(TAG, "video player requested while not parked")
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP -> {
+                Log.w(TAG, "video in car requires Android 5.0 or newer")
+                Toast.makeText(context, R.string.video_requires_android_5, Toast.LENGTH_LONG).show()
+                streamId?.let { reply(it, VideoInCar.errorNotification(itemUuid, VideoInCar.ERROR_INCOMPATIBLE_ASSET)) }
+            }
             activity != null -> Unit
             else -> context.startActivity(
                 Intent(context, CarPlayVideoActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -252,4 +270,14 @@ internal object CarPlayVideo : CarPlayVideoListener {
         pendingSeekMillis = null
         activity?.finish()
     }
+}
+
+/** API-neutral bridge: keeping Media3 types out of [CarPlayVideo] lets this class verify on API 19. */
+internal interface CarPlayVideoPlayer {
+    fun skip(deltaMillis: Int)
+    fun applyRate()
+    fun applySeek()
+    fun load()
+    fun state(): VideoInCar.PlayerState
+    fun finish()
 }

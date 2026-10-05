@@ -12,6 +12,7 @@ import java.util.Date
 import java.util.Locale
 import android.view.View
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
 import com.shilapi.xcertplay.airplay.CarPlayClusterDisplay
 import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.airplay.ClusterTurnCardOverlay
@@ -221,7 +222,9 @@ internal class ClusterTurnCardView(context: Context) : View(context) {
         if (next.icon == 0) return
         val resId = glyphRes(next.icon)
         if (resId != glyphTag) {
-            glyph = ContextCompat.getDrawable(context, resId)?.mutate()?.apply { setTint(accent) }
+            glyph = ContextCompat.getDrawable(context, resId)?.mutate()?.also {
+                DrawableCompat.setTint(it, accent)
+            }
             glyphTag = resId
         }
         val inset = side * 0.10f

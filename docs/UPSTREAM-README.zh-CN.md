@@ -64,7 +64,7 @@ Remote MFi 客户端把远程服务当作一块 MFi 芯片远程调用，抑或�
 - Android SDK Platform 37。
 - Android 9（API 28）或更高版本。
   在 Android 9 上不可用 Wi-Fi P2P 5 GHz 模式，应用会改用 LocalOnlyHotspot。
-- Android NDK `28.2.13676358`。
+- Android NDK `25.2.9519653`（最后一个支持 Android 4.4/API 19 的 NDK 版本）。
 - 硬件验证需要支持 USB Host/OTG 的 Android 设备以及 MFi 硬件。
 
 ## 构建

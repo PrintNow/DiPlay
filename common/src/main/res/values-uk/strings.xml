@@ -609,4 +609,5 @@
     <string name="wheel_key_service_description">Дає DiPlay використовувати вибрані в налаштуваннях кнопки керма для масштабу карти CarPlay на приборці та для руху екраном CarPlay. Лише отримує натискання кнопок і не читає екран.</string>
     <string name="cluster_song_on_change">Пісня лише при зміні</string>
     <string name="cluster_song_on_change_description">Нова пісня видна на приборці 5 секунд, потім картка порожніє. Пауза й продовження її не показують.</string>
+    <string name="video_requires_android_5">Для відео в автомобілі потрібна Android 5.0 або новіша версія.</string>
 </resources>
