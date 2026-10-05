@@ -34,6 +34,8 @@ The public release source archive corresponds to the tagged source and excludes 
 Pushing a tag matching `v*` (for example `v0.2.13`) runs the **Build and publish APK** workflow.
 It tests, lints and builds the signed release APK, uploads it as a workflow artifact, then attaches
 it and `SHA256SUMS.txt` to the GitHub Release for that tag. It never runs from a pull request.
+You can also use **Actions → Build and publish APK → Run workflow** to rebuild an existing release:
+enter that exact `v*` tag, not a branch name or commit SHA.
 
 Create these repository or protected-environment **Actions secrets**. Store file values as a single
 base64 string with no wrapping; on macOS, use `base64 -i FILE | tr -d '\n'`.

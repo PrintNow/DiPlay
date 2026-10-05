@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v* tag to build and publish
+        required: true
+        type: string
 
 # Creating a release and uploading its assets requires write access. The workflow is only
 # triggered by a repository tag or a maintainer's manual dispatch; it never runs for PRs.
@@ -15,7 +21,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Resolve release tag
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_TAG: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="$PUSH_TAG"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then tag="$INPUT_TAG"; fi
+          case "$tag" in v?*) ;; *) echo "Release tag must match v*" >&2; exit 1 ;; esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
 
       - name: Reject credential files in public source
         run: python3 scripts/check_public_tree.py
@@ -67,7 +88,7 @@ jobs:
       - name: Prepare release assets
         id: assets
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
           install -d release-assets
@@ -79,7 +100,7 @@ jobs:
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: DiPlay-${{ github.ref_name }}
+          name: DiPlay-${{ steps.release.outputs.tag }}
           path: release-assets/
           if-no-files-found: error
           retention-days: 30
