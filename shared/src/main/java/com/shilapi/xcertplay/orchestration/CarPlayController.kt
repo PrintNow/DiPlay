@@ -2025,13 +2025,10 @@ class CarPlayController(
 
     private fun startWirelessHotspot(generation: Int): WirelessHotspotInfo {
         val readyDeadline = System.nanoTime() + WirelessStartupPolicy.HOTSPOT_READY_MILLIS * 1_000_000
-        val hotspotMode = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
-            config.wirelessHotspotMode == WirelessHotspotMode.WIFI_P2P
-        ) {
-            WirelessHotspotMode.LOCAL_ONLY_HOTSPOT
-        } else {
-            config.wirelessHotspotMode
-        }
+        // Preferences are normally normalized on read, but runtime configuration can also be
+        // restored or supplied directly. Recheck here so KitKat never selects a Wi-Fi Direct or
+        // LocalOnlyHotspot backend that its framework cannot create.
+        val hotspotMode = config.wirelessHotspotMode.supported()
         if (com.shilapi.xcertplay.network.CarHotspotSettings.shouldEnable(
                 appContext, config.transport == CarPlayTransport.WIRELESS, hotspotMode,
             )
